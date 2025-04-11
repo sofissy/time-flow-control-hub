@@ -16,11 +16,10 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <AppProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
+    <AppProvider>
+      <BrowserRouter>
+        {/* TooltipProvider must be inside the React component tree after BrowserRouter */}
+        <TooltipProvider>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/customers" element={<Customers />} />
@@ -28,9 +27,11 @@ const App = () => (
             <Route path="/reports" element={<Reports />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-      </AppProvider>
-    </TooltipProvider>
+        </TooltipProvider>
+        <Toaster />
+        <Sonner />
+      </BrowserRouter>
+    </AppProvider>
   </QueryClientProvider>
 );
 
