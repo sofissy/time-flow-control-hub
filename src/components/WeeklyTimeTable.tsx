@@ -9,7 +9,7 @@ import {
   subWeeks,
   addWeeks
 } from "date-fns";
-import { ChevronLeft, ChevronRight, CalendarIcon, Save, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarIcon, Save, Plus, Clock } from "lucide-react";
 import { useAppContext, TimeEntry, Customer, Project } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter
 } from "@/components/ui/table";
 import {
   Select,
@@ -57,15 +58,12 @@ const WeeklyTimeTable = () => {
   } = useAppContext();
   const { toast } = useToast();
   
-  // Filter to only active customers and projects
   const activeCustomers = customers.filter(c => c.active);
   const activeProjects = projects.filter(p => p.active);
   
-  // Keep track of the week being displayed
   const [weekStart, setWeekStart] = useState<Date>(startOfWeek(selectedDate, { weekStartsOn: 1 }));
   const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
   
-  // Initial empty row
   const emptyRow = (): TimeEntryRowData => ({
     customerId: "",
     projectId: "",
@@ -73,13 +71,10 @@ const WeeklyTimeTable = () => {
     hours: {0: "", 1: "", 2: "", 3: "", 4: "", 5: "", 6: ""}
   });
   
-  // State for the table data
   const [rows, setRows] = useState<TimeEntryRowData[]>([emptyRow()]);
   
-  // Generate an array of dates for the current week
   const weekDays = Array.from({length: 7}, (_, i) => addDays(weekStart, i));
   
-  // Helper function to get customer and project names
   const getCustomerName = (id: string) => {
     const customer = customers.find(c => c.id === id);
     return customer ? customer.name : "";
@@ -90,21 +85,17 @@ const WeeklyTimeTable = () => {
     return project ? project.name : "";
   };
   
-  // Load existing time entries for the current week
   useEffect(() => {
-    // Create a map to organize entries by customer/project/description
     const entriesByKey: Record<string, TimeEntryRowData> = {};
     
-    // Filter time entries for the current week
     const weekEntries = timeEntries.filter(entry => {
       const entryDate = parseISO(entry.date);
       return isWithinInterval(entryDate, { start: weekStart, end: weekEnd });
     });
     
-    // Group entries
     weekEntries.forEach(entry => {
       const key = `${entry.customerId}-${entry.projectId}-${entry.description}`;
-      const dayIndex = (parseISO(entry.date).getDay() + 6) % 7; // Convert Sunday=0 to Monday=0 format
+      const dayIndex = (parseISO(entry.date).getDay() + 6) % 7;
       
       if (!entriesByKey[key]) {
         entriesByKey[key] = {
@@ -118,15 +109,11 @@ const WeeklyTimeTable = () => {
       entriesByKey[key].hours[dayIndex] = entry.hours.toString();
     });
     
-    // Convert map to array
     const loadedRows = Object.values(entriesByKey);
     
-    // If we have loaded rows, use them, otherwise keep an empty row
     setRows(loadedRows.length > 0 ? loadedRows : [emptyRow()]);
-    
   }, [timeEntries, weekStart]);
   
-  // Handle moving to previous/next week
   const handlePreviousWeek = () => {
     setWeekStart(subWeeks(weekStart, 1));
   };
@@ -135,11 +122,10 @@ const WeeklyTimeTable = () => {
     setWeekStart(addWeeks(weekStart, 1));
   };
   
-  // Handle changes to the row data
   const handleCustomerChange = (rowIndex: number, customerId: string) => {
     const newRows = [...rows];
     newRows[rowIndex].customerId = customerId;
-    newRows[rowIndex].projectId = ""; // Reset project when customer changes
+    newRows[rowIndex].projectId = "";
     setRows(newRows);
   };
   
@@ -161,27 +147,40 @@ const WeeklyTimeTable = () => {
     setRows(newRows);
   };
   
-  // Add a new row
   const addRow = () => {
     setRows([...rows, emptyRow()]);
   };
   
-  // Get projects for a specific customer
   const getProjectsForCustomer = (customerId: string) => {
     return activeProjects.filter(p => p.customerId === customerId);
   };
   
-  // Save all time entries for the week
+  const calculateDailyTotal = (dayIndex: number): number => {
+    let total = 0;
+    rows.forEach(row => {
+      const hours = parseFloat(row.hours[dayIndex] || '0');
+      if (!isNaN(hours)) {
+        total += hours;
+      }
+    });
+    return total;
+  };
+  
+  const calculateWeekTotal = (): number => {
+    let total = 0;
+    for (let i = 0; i < 7; i++) {
+      total += calculateDailyTotal(i);
+    }
+    return total;
+  };
+  
   const saveEntries = () => {
     let entriesAdded = 0;
     
     rows.forEach(row => {
-      // Skip rows without customer and project
       if (!row.customerId || !row.projectId) return;
       
-      // Add an entry for each day with hours
       Object.entries(row.hours).forEach(([dayIndex, hoursStr]) => {
-        // Skip days without hours
         if (!hoursStr) return;
         
         const hours = parseFloat(hoursStr);
@@ -189,7 +188,6 @@ const WeeklyTimeTable = () => {
         
         const day = addDays(weekStart, parseInt(dayIndex));
         
-        // Add time entry
         addTimeEntry({
           date: format(day, "yyyy-MM-dd"),
           customerId: row.customerId,
@@ -207,7 +205,6 @@ const WeeklyTimeTable = () => {
       description: `Added ${entriesAdded} time ${entriesAdded === 1 ? 'entry' : 'entries'} for the week`,
     });
     
-    // Reset to empty state if entries were added
     if (entriesAdded > 0) {
       setRows([emptyRow()]);
     }
@@ -329,6 +326,28 @@ const WeeklyTimeTable = () => {
               </TableRow>
             ))}
           </TableBody>
+          <TableFooter>
+            <TableRow className="bg-muted/50">
+              <TableCell colSpan={3} className="font-medium text-right">
+                Daily Total
+                <Clock className="h-4 w-4 inline ml-1" />
+              </TableCell>
+              {[0, 1, 2, 3, 4, 5, 6].map((dayIndex) => (
+                <TableCell key={dayIndex} className="text-center font-medium">
+                  {calculateDailyTotal(dayIndex).toFixed(1)}
+                </TableCell>
+              ))}
+            </TableRow>
+            <TableRow className="bg-muted/30">
+              <TableCell colSpan={3} className="font-medium text-right">
+                Week Total
+                <Clock className="h-4 w-4 inline ml-1" />
+              </TableCell>
+              <TableCell colSpan={7} className="text-center font-medium">
+                {calculateWeekTotal().toFixed(1)}
+              </TableCell>
+            </TableRow>
+          </TableFooter>
         </Table>
       </div>
       
