@@ -1,8 +1,6 @@
-
 import { useState } from "react";
 import { format } from "date-fns";
 import { useAppContext } from "@/context/AppContext";
-import TimeEntryForm from "@/components/TimeEntryForm";
 import TimeReport from "@/components/TimeReport";
 import Navbar from "@/components/Navbar";
 import {
@@ -117,10 +115,7 @@ const Index = () => {
       
       <main className="container py-6">
         <div className="flex flex-col lg:flex-row gap-6">
-          {/* Left column - Time entry form and daily entries */}
           <div className="w-full lg:w-2/3 space-y-6">
-            <TimeEntryForm />
-            
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg font-medium">
@@ -203,14 +198,13 @@ const Index = () => {
                   </Table>
                 ) : (
                   <div className="py-8 text-center text-muted-foreground">
-                    No time entries for today. Add your first entry above.
+                    No time entries for today. Add entries using the Weekly Entry page.
                   </div>
                 )}
               </CardContent>
             </Card>
           </div>
           
-          {/* Right column - Stats and charts */}
           <div className="w-full lg:w-1/3 space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <Card className="dashboard-card">
