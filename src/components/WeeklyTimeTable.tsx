@@ -174,6 +174,10 @@ const WeeklyTimeTable = () => {
     return total;
   };
   
+  const getDailyTotalColor = (hours: number): string => {
+    return hours > 8 ? 'text-orange-500 font-bold' : '';
+  };
+  
   const saveEntries = () => {
     let entriesAdded = 0;
     
@@ -332,11 +336,20 @@ const WeeklyTimeTable = () => {
                 Daily Total
                 <Clock className="h-4 w-4 inline ml-1" />
               </TableCell>
-              {[0, 1, 2, 3, 4, 5, 6].map((dayIndex) => (
-                <TableCell key={dayIndex} className="text-center font-medium">
-                  {calculateDailyTotal(dayIndex).toFixed(1)}
-                </TableCell>
-              ))}
+              {[0, 1, 2, 3, 4, 5, 6].map((dayIndex) => {
+                const dailyTotal = calculateDailyTotal(dayIndex);
+                return (
+                  <TableCell 
+                    key={dayIndex} 
+                    className={cn(
+                      "text-center font-medium",
+                      getDailyTotalColor(dailyTotal)
+                    )}
+                  >
+                    {dailyTotal.toFixed(1)}
+                  </TableCell>
+                );
+              })}
             </TableRow>
             <TableRow className="bg-muted/30">
               <TableCell colSpan={3} className="font-medium text-right">
