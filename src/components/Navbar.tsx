@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -9,14 +10,14 @@ import {
   Users, 
   FolderKanban, 
   BarChart2,
-  TableCellsLarge 
+  Table 
 } from "lucide-react";
-import { useMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const Navbar = () => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
   
   const navItems = [
     {
@@ -27,7 +28,7 @@ const Navbar = () => {
     {
       name: "Weekly Entry",
       path: "/weekly",
-      icon: <TableCellsLarge className="h-5 w-5" />,
+      icon: <Table className="h-5 w-5" />,
     },
     {
       name: "Customers",
