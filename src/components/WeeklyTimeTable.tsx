@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { 
   addDays, 
@@ -9,7 +10,7 @@ import {
   subWeeks,
   addWeeks
 } from "date-fns";
-import { ChevronLeft, ChevronRight, CalendarIcon, Save, Plus, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarIcon, Save, Plus, Clock, CheckCircle, XCircle } from "lucide-react";
 import { useAppContext, TimeEntry, Customer, Project } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,11 +38,14 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 interface TimeEntryRowData {
+  id?: string; // Optional id for existing entries
   customerId: string;
   projectId: string;
   description: string;
+  status?: TimeEntry["status"]; // Optional status for existing entries
   hours: {
     [dayIndex: number]: string;
   };
@@ -53,8 +57,13 @@ const WeeklyTimeTable = () => {
     projects,
     timeEntries,
     addTimeEntry,
+    updateTimeEntry,
+    updateTimeEntryStatus,
     selectedDate,
-    setSelectedDate
+    setSelectedDate,
+    currentUser,
+    canManageTimesheets,
+    canEditTimeEntry
   } = useAppContext();
   const { toast } = useToast();
   
@@ -72,6 +81,7 @@ const WeeklyTimeTable = () => {
   });
   
   const [rows, setRows] = useState<TimeEntryRowData[]>([emptyRow()]);
+  const [existingEntries, setExistingEntries] = useState<TimeEntryRowData[]>([]);
   
   const weekDays = Array.from({length: 7}, (_, i) => addDays(weekStart, i));
   
@@ -87,6 +97,7 @@ const WeeklyTimeTable = () => {
   
   useEffect(() => {
     const entriesByKey: Record<string, TimeEntryRowData> = {};
+    const existingEntriesList: TimeEntryRowData[] = [];
     
     const weekEntries = timeEntries.filter(entry => {
       const entryDate = parseISO(entry.date);
@@ -94,24 +105,31 @@ const WeeklyTimeTable = () => {
     });
     
     weekEntries.forEach(entry => {
-      const key = `${entry.customerId}-${entry.projectId}-${entry.description}`;
       const dayIndex = (parseISO(entry.date).getDay() + 6) % 7;
       
-      if (!entriesByKey[key]) {
-        entriesByKey[key] = {
+      const existingEntry = existingEntriesList.find(e => 
+        e.id === entry.id ||
+        (e.customerId === entry.customerId && 
+         e.projectId === entry.projectId && 
+         e.description === entry.description)
+      );
+      
+      if (existingEntry) {
+        existingEntry.hours[dayIndex] = entry.hours.toString();
+      } else {
+        existingEntriesList.push({
+          id: entry.id,
           customerId: entry.customerId,
           projectId: entry.projectId,
           description: entry.description,
-          hours: {}
-        };
+          status: entry.status,
+          hours: { [dayIndex]: entry.hours.toString() }
+        });
       }
-      
-      entriesByKey[key].hours[dayIndex] = entry.hours.toString();
     });
     
-    const loadedRows = Object.values(entriesByKey);
-    
-    setRows(loadedRows.length > 0 ? loadedRows : [emptyRow()]);
+    setExistingEntries(existingEntriesList);
+    setRows([emptyRow()]);
   }, [timeEntries, weekStart]);
   
   const handlePreviousWeek = () => {
@@ -157,12 +175,23 @@ const WeeklyTimeTable = () => {
   
   const calculateDailyTotal = (dayIndex: number): number => {
     let total = 0;
+    
+    // Add hours from new rows
     rows.forEach(row => {
       const hours = parseFloat(row.hours[dayIndex] || '0');
       if (!isNaN(hours)) {
         total += hours;
       }
     });
+    
+    // Add hours from existing entries
+    existingEntries.forEach(entry => {
+      const hours = parseFloat(entry.hours[dayIndex] || '0');
+      if (!isNaN(hours)) {
+        total += hours;
+      }
+    });
+    
     return total;
   };
   
@@ -214,6 +243,29 @@ const WeeklyTimeTable = () => {
     }
   };
   
+  const updateEntryStatus = (entryId: string, status: TimeEntry["status"]) => {
+    updateTimeEntryStatus(entryId, status);
+    
+    toast({
+      title: status === "approved" ? "Time entry approved" : "Time entry rejected",
+      description: `Time entry has been ${status}`,
+    });
+  };
+  
+  const getStatusBadge = (status: TimeEntry["status"]) => {
+    switch (status) {
+      case "approved":
+        return <Badge className="bg-green-500">Approved</Badge>;
+      case "rejected":
+        return <Badge className="bg-red-500">Rejected</Badge>;
+      case "pending":
+        return <Badge className="bg-yellow-500">Pending</Badge>;
+      case "draft":
+      default:
+        return <Badge className="bg-gray-500">Draft</Badge>;
+    }
+  };
+  
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -253,6 +305,71 @@ const WeeklyTimeTable = () => {
         </div>
       </div>
       
+      {existingEntries.length > 0 && (
+        <>
+          <h3 className="text-lg font-semibold mt-6">Existing Time Entries</h3>
+          <div className="border rounded-lg overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[180px]">Customer</TableHead>
+                  <TableHead className="w-[180px]">Project</TableHead>
+                  <TableHead className="w-[200px]">Description</TableHead>
+                  <TableHead>Status</TableHead>
+                  {weekDays.map((day, index) => (
+                    <TableHead key={index} className="text-center min-w-[80px]">
+                      <div>{format(day, "EEE")}</div>
+                      <div className="text-xs text-muted-foreground">{format(day, "MMM d")}</div>
+                    </TableHead>
+                  ))}
+                  {canManageTimesheets() && <TableHead className="w-[120px]">Actions</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {existingEntries.map((entry, entryIndex) => (
+                  <TableRow key={entryIndex}>
+                    <TableCell>{getCustomerName(entry.customerId)}</TableCell>
+                    <TableCell>{getProjectName(entry.projectId)}</TableCell>
+                    <TableCell>{entry.description}</TableCell>
+                    <TableCell>{entry.status && getStatusBadge(entry.status)}</TableCell>
+                    {[0, 1, 2, 3, 4, 5, 6].map((dayIndex) => (
+                      <TableCell key={dayIndex} className="text-center">
+                        {entry.hours[dayIndex] || "-"}
+                      </TableCell>
+                    ))}
+                    {canManageTimesheets() && (
+                      <TableCell>
+                        <div className="flex space-x-1">
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-8 w-8" 
+                            onClick={() => entry.id && updateEntryStatus(entry.id, "approved")}
+                            disabled={entry.status === "approved"}
+                          >
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-8 w-8" 
+                            onClick={() => entry.id && updateEntryStatus(entry.id, "rejected")}
+                            disabled={entry.status === "rejected"}
+                          >
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
+      
+      <h3 className="text-lg font-semibold mt-6">New Time Entries</h3>
       <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>

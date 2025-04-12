@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { format } from "date-fns";
 
@@ -29,11 +28,22 @@ export type TimeEntry = {
   status: "draft" | "pending" | "approved" | "rejected";
 };
 
+export type UserRole = "user" | "admin";
+
+export type User = {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+};
+
 type AppContextType = {
   customers: Customer[];
   projects: Project[];
   timeEntries: TimeEntry[];
   selectedDate: Date;
+  currentUser: User;
+  users: User[];
   addCustomer: (customer: Omit<Customer, "id">) => void;
   updateCustomer: (customer: Customer) => void;
   deleteCustomer: (id: string) => void;
@@ -51,6 +61,12 @@ type AppContextType = {
   getTotalHoursForDay: (date: string) => number;
   getTotalHoursForWeek: (startDate: string) => number;
   getTotalHoursForMonth: (month: number, year: number) => number;
+  switchUser: (userId: string) => void;
+  addUser: (user: Omit<User, "id">) => void;
+  updateUser: (user: User) => void;
+  deleteUser: (id: string) => void;
+  canManageTimesheets: () => boolean;
+  canEditTimeEntry: (entry: TimeEntry) => boolean;
 };
 
 // Create the context with a default value
@@ -146,11 +162,66 @@ const sampleTimeEntries: TimeEntry[] = [
   },
 ];
 
+// Sample users
+const sampleUsers: User[] = [
+  {
+    id: "u1",
+    name: "Regular User",
+    email: "user@example.com",
+    role: "user",
+  },
+  {
+    id: "u2",
+    name: "Admin User",
+    email: "admin@example.com",
+    role: "admin",
+  }
+];
+
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [customers, setCustomers] = useState<Customer[]>(sampleCustomers);
   const [projects, setProjects] = useState<Project[]>(sampleProjects);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(sampleTimeEntries);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [users, setUsers] = useState<User[]>(sampleUsers);
+  const [currentUser, setCurrentUser] = useState<User>(sampleUsers[0]); // Default to regular user
+
+  // User operations
+  const switchUser = (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    if (user) {
+      setCurrentUser(user);
+    }
+  };
+
+  const addUser = (user: Omit<User, "id">) => {
+    const newUser = {
+      ...user,
+      id: `u${users.length + 1}`,
+    };
+    setUsers([...users, newUser]);
+  };
+
+  const updateUser = (user: User) => {
+    setUsers(users.map(u => (u.id === user.id ? user : u)));
+  };
+
+  const deleteUser = (id: string) => {
+    setUsers(users.filter(u => u.id !== id));
+  };
+
+  // Permission checks
+  const canManageTimesheets = () => {
+    return currentUser.role === "admin";
+  };
+
+  const canEditTimeEntry = (entry: TimeEntry) => {
+    // Admin can edit any entry
+    if (currentUser.role === "admin") return true;
+    
+    // Regular users can only edit entries that are not approved
+    return entry.status !== "approved";
+  };
 
   // Customer operations
   const addCustomer = (customer: Omit<Customer, "id">) => {
@@ -197,14 +268,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateTimeEntry = (entry: TimeEntry) => {
+    // Regular users can only update entries that are not approved
+    if (currentUser.role === "user" && entry.status === "approved") {
+      return;
+    }
     setTimeEntries(timeEntries.map(e => (e.id === entry.id ? entry : e)));
   };
 
   const deleteTimeEntry = (id: string) => {
+    const entry = timeEntries.find(e => e.id === id);
+    // Regular users can only delete entries that are not approved
+    if (currentUser.role === "user" && entry && entry.status === "approved") {
+      return;
+    }
     setTimeEntries(timeEntries.filter(e => e.id !== id));
   };
 
   const updateTimeEntryStatus = (id: string, status: TimeEntry["status"]) => {
+    // Only admins can change status to approved
+    if (currentUser.role !== "admin" && status === "approved") {
+      return;
+    }
+    
     setTimeEntries(
       timeEntries.map(entry =>
         entry.id === id ? { ...entry, status } : entry
@@ -246,6 +331,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     projects,
     timeEntries,
     selectedDate,
+    currentUser,
+    users,
     addCustomer,
     updateCustomer,
     deleteCustomer,
@@ -263,6 +350,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     getTotalHoursForDay,
     getTotalHoursForWeek,
     getTotalHoursForMonth,
+    switchUser,
+    addUser,
+    updateUser,
+    deleteUser,
+    canManageTimesheets,
+    canEditTimeEntry,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
