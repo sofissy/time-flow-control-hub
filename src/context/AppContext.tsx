@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
-import { format } from "date-fns";
+import { format, startOfWeek, parseISO, isWithinInterval, addDays } from "date-fns";
 
 // Define types for our data
 export type Customer = {
@@ -25,7 +25,12 @@ export type TimeEntry = {
   projectId: string;
   hours: number;
   description: string;
-  status: "draft" | "pending" | "approved" | "rejected";
+  status?: "draft" | "pending" | "approved" | "rejected" | "reopened"; // Made optional as status is now at week level
+};
+
+export type WeekStatus = {
+  weekStart: string; // ISO string YYYY-MM-DD of Monday
+  status: "draft" | "pending" | "approved" | "rejected" | "reopened";
 };
 
 export type UserRole = "user" | "admin";
@@ -41,6 +46,7 @@ type AppContextType = {
   customers: Customer[];
   projects: Project[];
   timeEntries: TimeEntry[];
+  weekStatuses: WeekStatus[];
   selectedDate: Date;
   currentUser: User;
   users: User[];
@@ -54,6 +60,8 @@ type AppContextType = {
   updateTimeEntry: (entry: TimeEntry) => void;
   deleteTimeEntry: (id: string) => void;
   updateTimeEntryStatus: (id: string, status: TimeEntry["status"]) => void;
+  getWeekStatus: (weekStart: string) => WeekStatus | undefined;
+  updateWeekStatus: (weekStart: string, status: WeekStatus["status"]) => void;
   setSelectedDate: (date: Date) => void;
   getProjectsByCustomer: (customerId: string) => Project[];
   getCustomerById: (id: string) => Customer | undefined;
@@ -67,6 +75,7 @@ type AppContextType = {
   deleteUser: (id: string) => void;
   canManageTimesheets: () => boolean;
   canEditTimeEntry: (entry: TimeEntry) => boolean;
+  canEditTimesheet: (weekStart: string) => boolean;
 };
 
 // Create the context with a default value
@@ -131,6 +140,7 @@ const sampleProjects: Project[] = [
 // Get today's date in ISO format
 const today = new Date();
 const todayISO = format(today, "yyyy-MM-dd");
+const thisWeekStart = format(startOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd");
 
 const sampleTimeEntries: TimeEntry[] = [
   {
@@ -140,7 +150,6 @@ const sampleTimeEntries: TimeEntry[] = [
     projectId: "p1",
     hours: 3.5,
     description: "Homepage design implementation",
-    status: "approved",
   },
   {
     id: "t2",
@@ -149,7 +158,6 @@ const sampleTimeEntries: TimeEntry[] = [
     projectId: "p2",
     hours: 2,
     description: "API integration for mobile app",
-    status: "pending",
   },
   {
     id: "t3",
@@ -158,8 +166,15 @@ const sampleTimeEntries: TimeEntry[] = [
     projectId: "p3",
     hours: 4,
     description: "Security vulnerability assessment",
-    status: "draft",
   },
+];
+
+// Sample week statuses
+const sampleWeekStatuses: WeekStatus[] = [
+  {
+    weekStart: thisWeekStart,
+    status: "draft"
+  }
 ];
 
 // Sample users
@@ -182,6 +197,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [customers, setCustomers] = useState<Customer[]>(sampleCustomers);
   const [projects, setProjects] = useState<Project[]>(sampleProjects);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(sampleTimeEntries);
+  const [weekStatuses, setWeekStatuses] = useState<WeekStatus[]>(sampleWeekStatuses);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [users, setUsers] = useState<User[]>(sampleUsers);
   const [currentUser, setCurrentUser] = useState<User>(sampleUsers[0]); // Default to regular user
@@ -216,11 +232,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const canEditTimeEntry = (entry: TimeEntry) => {
-    // Admin can edit any entry
-    if (currentUser.role === "admin") return true;
+    // This is less relevant now that status is at the week level
+    return canManageTimesheets() || true;
+  };
+
+  const canEditTimesheet = (weekStart: string) => {
+    // Regular users can only edit if the week is in draft or reopened status
+    const weekStatus = getWeekStatus(weekStart);
     
-    // Regular users can only edit entries that are not approved
-    return entry.status !== "approved";
+    if (!weekStatus) {
+      // If no status exists, it's a new week and can be edited
+      return true;
+    }
+    
+    if (canManageTimesheets()) {
+      // Admins can always edit
+      return true;
+    }
+    
+    // Regular users can edit only if draft or reopened
+    return ['draft', 'reopened'].includes(weekStatus.status);
+  };
+
+  // Week status operations
+  const getWeekStatus = (weekStart: string): WeekStatus | undefined => {
+    return weekStatuses.find(w => w.weekStart === weekStart);
+  };
+
+  const updateWeekStatus = (weekStart: string, status: WeekStatus["status"]) => {
+    const existingStatus = weekStatuses.find(w => w.weekStart === weekStart);
+    
+    if (existingStatus) {
+      // Update existing status
+      setWeekStatuses(
+        weekStatuses.map(w => 
+          w.weekStart === weekStart ? { ...w, status } : w
+        )
+      );
+    } else {
+      // Create new status
+      setWeekStatuses([
+        ...weekStatuses,
+        { weekStart, status }
+      ]);
+    }
   };
 
   // Customer operations
@@ -262,37 +317,63 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const newEntry = {
       ...entry,
       id: `t${timeEntries.length + 1}`,
-      status: "draft" as const,
     };
+    
+    // Ensure week status exists for this entry
+    const entryDate = parseISO(entry.date);
+    const weekStartDate = startOfWeek(entryDate, { weekStartsOn: 1 });
+    const weekStartISO = format(weekStartDate, "yyyy-MM-dd");
+    
+    if (!getWeekStatus(weekStartISO)) {
+      // Create week status if it doesn't exist
+      updateWeekStatus(weekStartISO, "draft");
+    }
+    
     setTimeEntries([...timeEntries, newEntry]);
   };
 
   const updateTimeEntry = (entry: TimeEntry) => {
-    // Regular users can only update entries that are not approved
-    if (currentUser.role === "user" && entry.status === "approved") {
+    // Check if user can edit this week's timesheet
+    const entryDate = parseISO(entry.date);
+    const weekStartDate = startOfWeek(entryDate, { weekStartsOn: 1 });
+    const weekStartISO = format(weekStartDate, "yyyy-MM-dd");
+    
+    if (!canEditTimesheet(weekStartISO)) {
       return;
     }
+    
     setTimeEntries(timeEntries.map(e => (e.id === entry.id ? entry : e)));
   };
 
   const deleteTimeEntry = (id: string) => {
     const entry = timeEntries.find(e => e.id === id);
-    // Regular users can only delete entries that are not approved
-    if (currentUser.role === "user" && entry && entry.status === "approved") {
+    if (!entry) return;
+    
+    // Check if user can edit this week's timesheet
+    const entryDate = parseISO(entry.date);
+    const weekStartDate = startOfWeek(entryDate, { weekStartsOn: 1 });
+    const weekStartISO = format(weekStartDate, "yyyy-MM-dd");
+    
+    if (!canEditTimesheet(weekStartISO)) {
       return;
     }
+    
     setTimeEntries(timeEntries.filter(e => e.id !== id));
   };
 
   const updateTimeEntryStatus = (id: string, status: TimeEntry["status"]) => {
-    // Only admins can change status to approved
-    if (currentUser.role !== "admin" && status === "approved") {
+    // This is less relevant now as status is per week, but keeping for compatibility
+    const entry = timeEntries.find(e => e.id === id);
+    if (!entry) return;
+    
+    // Only admin can change status
+    if (!canManageTimesheets()) {
       return;
     }
     
     setTimeEntries(
-      timeEntries.map(entry =>
-        entry.id === id ? { ...entry, status } : entry
+      timeEntries.map(e =>
+        e.id === id ? { ...e, status } : e
       )
     );
   };
@@ -317,19 +398,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const getTotalHoursForWeek = (startDate: string) => {
-    // This is a simplified version - a real implementation would check dates within the week
-    return timeEntries.reduce((total, entry) => total + entry.hours, 0);
+    const start = parseISO(startDate);
+    const end = addDays(start, 6);
+    
+    return timeEntries
+      .filter(entry => {
+        const entryDate = parseISO(entry.date);
+        return isWithinInterval(entryDate, { start, end });
+      })
+      .reduce((total, entry) => total + entry.hours, 0);
   };
 
   const getTotalHoursForMonth = (month: number, year: number) => {
-    // This is a simplified version - a real implementation would check dates within the month
-    return timeEntries.reduce((total, entry) => total + entry.hours, 0);
+    // Filter entries for the specific month and year
+    return timeEntries
+      .filter(entry => {
+        const entryDate = parseISO(entry.date);
+        return (
+          entryDate.getMonth() === month && 
+          entryDate.getFullYear() === year
+        );
+      })
+      .reduce((total, entry) => total + entry.hours, 0);
   };
 
   const value = {
     customers,
     projects,
     timeEntries,
+    weekStatuses,
     selectedDate,
     currentUser,
     users,
@@ -343,6 +440,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     updateTimeEntry,
     deleteTimeEntry,
     updateTimeEntryStatus,
+    getWeekStatus,
+    updateWeekStatus,
     setSelectedDate,
     getProjectsByCustomer,
     getCustomerById,
@@ -356,6 +455,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     deleteUser,
     canManageTimesheets,
     canEditTimeEntry,
+    canEditTimesheet,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

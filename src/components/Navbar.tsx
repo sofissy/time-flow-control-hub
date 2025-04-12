@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import UserSwitcher from "@/components/UserSwitcher";
 import { useAppContext } from "@/context/AppContext";
+import { Clock } from "lucide-react";
 
 const Navbar = () => {
   const { canManageTimesheets } = useAppContext();
@@ -11,7 +12,8 @@ const Navbar = () => {
     <header className="bg-background border-b">
       <div className="container h-16 flex items-center">
         <div className="mr-4 md:flex hidden">
-          <NavLink to="/" className="text-xl font-bold">
+          <NavLink to="/" className="text-xl font-bold flex items-center">
+            <Clock className="h-5 w-5 mr-2" />
             TimeTrack
           </NavLink>
         </div>
