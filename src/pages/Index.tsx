@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { format } from "date-fns";
 import { useAppContext } from "@/context/AppContext";
@@ -64,7 +65,10 @@ const Index = () => {
     return project ? project.name : "Unknown";
   };
   
-  const getStatusBadgeClass = (status: string) => {
+  const getStatusBadgeClass = (status: string | undefined) => {
+    // Add undefined check and provide a default value
+    if (!status) return "bg-gray-100 text-gray-800";
+    
     switch (status) {
       case "approved":
         return "bg-green-100 text-green-800";
@@ -152,7 +156,7 @@ const Index = () => {
                           </TableCell>
                           <TableCell>
                             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusBadgeClass(entry.status)}`}>
-                              {entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
+                              {entry.status ? entry.status.charAt(0).toUpperCase() + entry.status.slice(1) : "Draft"}
                             </span>
                           </TableCell>
                           <TableCell>
@@ -164,7 +168,7 @@ const Index = () => {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                {entry.status === "draft" && (
+                                {(!entry.status || entry.status === "draft") && (
                                   <DropdownMenuItem onClick={() => handleSubmitForApproval(entry.id)}>
                                     <Clock className="mr-2 h-4 w-4" />
                                     <span>Submit for Approval</span>
