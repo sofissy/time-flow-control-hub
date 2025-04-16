@@ -67,7 +67,6 @@ const WeeklyTimeTable = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  // Form state
   const [date, setDate] = useState(selectedDate);
   const [customerId, setCustomerId] = useState("");
   const [projectId, setProjectId] = useState("");
@@ -439,7 +438,6 @@ const WeeklyTimeTable = () => {
         </TableBody>
       </Table>
 
-      {/* Add Time Entry Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -489,7 +487,7 @@ const WeeklyTimeTable = () => {
                       </SelectItem>
                     ))
                   ) : (
-                    <SelectItem value="" disabled>
+                    <SelectItem value="no-customer" disabled>
                       Select a customer first
                     </SelectItem>
                   )}
@@ -531,7 +529,6 @@ const WeeklyTimeTable = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Time Entry Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -581,7 +578,7 @@ const WeeklyTimeTable = () => {
                       </SelectItem>
                     ))
                   ) : (
-                    <SelectItem value="" disabled>
+                    <SelectItem value="no-customer" disabled>
                       Select a customer first
                     </SelectItem>
                   )}
@@ -623,7 +620,6 @@ const WeeklyTimeTable = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Week Status Actions */}
       <div className="flex justify-between items-center">
         <div>
           <h3 className="text-lg font-medium">Week Status</h3>
@@ -662,9 +658,6 @@ const WeeklyTimeTable = () => {
           {canManageTimesheets() && weekStatus?.status !== "draft" && weekStatus?.status !== "reopened" && (
             <Button onClick={handleReopen}>Reopen</Button>
           )}
-          {/* Regular users can only edit if the week is in draft or reopened status */}
-          {/* Admins can always edit */}
-          {/* Regular users can edit only if draft or reopened */}
           {weekStatus?.status !== "draft" && weekStatus?.status !== "reopened" && !canManageTimesheets() && (
             <span className="text-muted-foreground">
               Timesheet is locked for editing.
