@@ -12,6 +12,16 @@ import { CalendarIcon, Save, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
+// Define the type for a single cell edit data
+type CellEditData = {
+  hours: string;
+  projectId: string;
+  description: string;
+};
+
+// Define the type for the edit data state
+type EditDataType = Record<string, CellEditData>;
+
 const WeeklyDirectEntry = () => {
   const { 
     customers, 
@@ -31,7 +41,7 @@ const WeeklyDirectEntry = () => {
 
   const [weekStartDate, setWeekStartDate] = useState(startOfWeek(selectedDate, { weekStartsOn: 1 }));
   const [weekEntries, setWeekEntries] = useState(timeEntries);
-  const [editData, setEditData] = useState<Record<string, Record<string, { hours: string, projectId: string, description: string }>>>({});
+  const [editData, setEditData] = useState<EditDataType>({});
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [availableProjects, setAvailableProjects] = useState<any[]>([]);
   
@@ -76,13 +86,13 @@ const WeeklyDirectEntry = () => {
     setSelectedDate(nextWeek);
   };
 
-  const handleCellChange = (day: Date, field: 'hours' | 'projectId' | 'description', value: string) => {
+  const handleCellChange = (day: Date, field: keyof CellEditData, value: string) => {
     const formattedDate = format(day, "yyyy-MM-dd");
     
     setEditData(prev => ({
       ...prev,
       [formattedDate]: {
-        ...(prev[formattedDate] || {}),
+        ...(prev[formattedDate] || { hours: "", projectId: "", description: "" }),
         [field]: value
       }
     }));
@@ -430,3 +440,4 @@ const WeeklyDirectEntry = () => {
 };
 
 export default WeeklyDirectEntry;
+
