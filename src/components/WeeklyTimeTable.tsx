@@ -1,20 +1,11 @@
-
-import { useState, useEffect } from "react";
-import { 
-  addDays, 
-  format, 
-  startOfWeek, 
-  endOfWeek, 
-  isWithinInterval, 
-  parseISO,
-  subWeeks,
-  addWeeks,
-  isSameDay
-} from "date-fns";
-import { ChevronLeft, ChevronRight, CalendarIcon, Save, Plus, Clock, CheckCircle, XCircle, Send } from "lucide-react";
-import { useAppContext, TimeEntry, Customer, Project } from "@/context/AppContext";
+import React, { useState, useEffect, useCallback } from "react";
+import { format, startOfWeek, endOfWeek, addDays, isSameDay, parseISO } from "date-fns";
+import { useAppContext } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -22,8 +13,22 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableFooter
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -31,532 +36,642 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon, Plus, MoreHorizontal, Pencil, Trash2, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-
-interface TimeEntryRowData {
-  id?: string; // Optional id for existing entries
-  customerId: string;
-  projectId: string;
-  description: string;
-  hours: {
-    [dayIndex: number]: string;
-  };
-}
-
-interface WeekStatus {
-  status: "draft" | "pending" | "approved" | "rejected" | "reopened";
-  weekStart: string; // ISO date string of week start
-}
 
 const WeeklyTimeTable = () => {
-  const { 
-    customers, 
+  const {
+    customers,
     projects,
     timeEntries,
     addTimeEntry,
     updateTimeEntry,
-    updateTimeEntryStatus,
-    getWeekStatus,
+    deleteTimeEntry,
     updateWeekStatus,
+    getWeekStatus,
     selectedDate,
     setSelectedDate,
-    currentUser,
-    canManageTimesheets,
-    canEditTimesheet
+    getProjectsByCustomer,
+    canEditTimesheet,
+    updateTimeEntryStatus,
+    canManageTimesheets
   } = useAppContext();
   const { toast } = useToast();
-  
-  const activeCustomers = customers.filter(c => c.active);
-  const activeProjects = projects.filter(p => p.active);
-  
-  const [weekStart, setWeekStart] = useState<Date>(startOfWeek(selectedDate, { weekStartsOn: 1 }));
-  const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
-  const weekStartISO = format(weekStart, "yyyy-MM-dd");
-  
-  const emptyRow = (): TimeEntryRowData => ({
-    customerId: "",
-    projectId: "",
-    description: "",
-    hours: {0: "", 1: "", 2: "", 3: "", 4: "", 5: "", 6: ""}
-  });
-  
-  const [rows, setRows] = useState<TimeEntryRowData[]>([emptyRow()]);
-  const [existingEntries, setExistingEntries] = useState<TimeEntryRowData[]>([]);
-  
-  const weekDays = Array.from({length: 7}, (_, i) => addDays(weekStart, i));
+
+  const [weekStartDate, setWeekStartDate] = useState(startOfWeek(selectedDate, { weekStartsOn: 1 }));
+  const [weekEntries, setWeekEntries] = useState(timeEntries.filter(entry =>
+    entry.date >= format(startOfWeek(selectedDate, { weekStartsOn: 1 }), "yyyy-MM-dd") &&
+    entry.date <= format(endOfWeek(selectedDate, { weekStartsOn: 1 }), "yyyy-MM-dd")
+  ));
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  // Form state
+  const [date, setDate] = useState(selectedDate);
+  const [customerId, setCustomerId] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const [description, setDescription] = useState("");
+  const [hours, setHours] = useState<number | undefined>(undefined);
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+
+  const weekStartISO = format(weekStartDate, "yyyy-MM-dd");
   const weekStatus = getWeekStatus(weekStartISO);
-  
+  const canEdit = canEditTimesheet(weekStartISO);
+
+  useEffect(() => {
+    setWeekStartDate(startOfWeek(selectedDate, { weekStartsOn: 1 }));
+  }, [selectedDate]);
+
+  useEffect(() => {
+    const start = format(weekStartDate, "yyyy-MM-dd");
+    const end = format(endOfWeek(weekStartDate, { weekStartsOn: 1 }), "yyyy-MM-dd");
+    
+    setWeekEntries(timeEntries.filter(entry => entry.date >= start && entry.date <= end));
+  }, [timeEntries, weekStartDate]);
+
+  const handleDateSelect = (date: Date) => {
+    setSelectedDate(date);
+  };
+
+  const handlePreviousWeek = () => {
+    const previousWeek = addDays(weekStartDate, -7);
+    setWeekStartDate(previousWeek);
+    setSelectedDate(previousWeek);
+  };
+
+  const handleNextWeek = () => {
+    const nextWeek = addDays(weekStartDate, 7);
+    setWeekStartDate(nextWeek);
+    setSelectedDate(nextWeek);
+  };
+
+  const handleOpenDialog = () => {
+    setDate(selectedDate);
+    setIsDialogOpen(true);
+  };
+
+  const handleAddTimeEntry = () => {
+    if (!customerId) {
+      toast({
+        title: "Customer required",
+        description: "Please select a customer",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!projectId) {
+      toast({
+        title: "Project required",
+        description: "Please select a project",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!hours) {
+      toast({
+        title: "Hours required",
+        description: "Please enter the number of hours",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (hours <= 0) {
+      toast({
+        title: "Invalid hours",
+        description: "Hours must be greater than zero",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    addTimeEntry({
+      date: format(date, "yyyy-MM-dd"),
+      customerId,
+      projectId,
+      hours,
+      description,
+    });
+
+    resetForm();
+    setIsDialogOpen(false);
+    
+    toast({
+      title: "Time entry added",
+      description: "Time entry has been added successfully",
+    });
+  };
+
+  const handleOpenEditDialog = (entryId: string) => {
+    const entry = timeEntries.find(e => e.id === entryId);
+    if (!entry) return;
+
+    setSelectedEntryId(entryId);
+    setDate(parseISO(entry.date));
+    setCustomerId(entry.customerId);
+    setProjectId(entry.projectId);
+    setDescription(entry.description);
+    setHours(entry.hours);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditTimeEntry = () => {
+    if (!selectedEntryId) return;
+
+    if (!customerId) {
+      toast({
+        title: "Customer required",
+        description: "Please select a customer",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!projectId) {
+      toast({
+        title: "Project required",
+        description: "Please select a project",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!hours) {
+      toast({
+        title: "Hours required",
+        description: "Please enter the number of hours",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (hours <= 0) {
+      toast({
+        title: "Invalid hours",
+        description: "Hours must be greater than zero",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateTimeEntry({
+      id: selectedEntryId,
+      date: format(date, "yyyy-MM-dd"),
+      customerId,
+      projectId,
+      hours,
+      description,
+    });
+
+    resetForm();
+    setIsEditDialogOpen(false);
+    
+    toast({
+      title: "Time entry updated",
+      description: "Time entry has been updated successfully",
+    });
+  };
+
+  const handleDeleteTimeEntry = (entryId: string) => {
+    deleteTimeEntry(entryId);
+    toast({
+      title: "Time entry deleted",
+      description: "Time entry has been deleted successfully",
+    });
+  };
+
+  const handleUpdateWeekStatus = (status: "draft" | "pending" | "approved" | "rejected" | "reopened") => {
+    updateWeekStatus(weekStartISO, status);
+    toast({
+      title: `Timesheet ${status}`,
+      description: `Timesheet has been ${status} successfully`,
+    });
+  };
+
+  const resetForm = () => {
+    setDate(selectedDate);
+    setCustomerId("");
+    setProjectId("");
+    setDescription("");
+    setHours(undefined);
+    setSelectedEntryId(null);
+  };
+
+  const getDayEntries = (date: Date) => {
+    const formattedDate = format(date, "yyyy-MM-dd");
+    return weekEntries.filter(entry => entry.date === formattedDate);
+  };
+
   const getCustomerName = (id: string) => {
     const customer = customers.find(c => c.id === id);
-    return customer ? customer.name : "";
+    return customer ? customer.name : "Unknown";
   };
-  
+
   const getProjectName = (id: string) => {
     const project = projects.find(p => p.id === id);
-    return project ? project.name : "";
+    return project ? project.name : "Unknown";
   };
-  
-  useEffect(() => {
-    const entriesByKey: Record<string, TimeEntryRowData> = {};
-    const existingEntriesList: TimeEntryRowData[] = [];
-    
-    const weekEntries = timeEntries.filter(entry => {
-      const entryDate = parseISO(entry.date);
-      return isWithinInterval(entryDate, { start: weekStart, end: weekEnd });
-    });
-    
-    weekEntries.forEach(entry => {
-      const dayIndex = (parseISO(entry.date).getDay() + 6) % 7;
-      
-      const existingEntry = existingEntriesList.find(e => 
-        e.id === entry.id ||
-        (e.customerId === entry.customerId && 
-         e.projectId === entry.projectId && 
-         e.description === entry.description)
-      );
-      
-      if (existingEntry) {
-        existingEntry.hours[dayIndex] = entry.hours.toString();
-      } else {
-        existingEntriesList.push({
-          id: entry.id,
-          customerId: entry.customerId,
-          projectId: entry.projectId,
-          description: entry.description,
-          hours: { [dayIndex]: entry.hours.toString() }
-        });
-      }
-    });
-    
-    setExistingEntries(existingEntriesList);
-    setRows([emptyRow()]);
-  }, [timeEntries, weekStart]);
-  
-  const handlePreviousWeek = () => {
-    setWeekStart(subWeeks(weekStart, 1));
+
+  const getProjectsForCustomer = useCallback((customerId: string) => {
+    return projects.filter(project => project.customerId === customerId && project.active);
+  }, [projects]);
+
+  const isToday = (date: Date) => {
+    return isSameDay(date, selectedDate);
   };
-  
-  const handleNextWeek = () => {
-    setWeekStart(addWeeks(weekStart, 1));
+
+  const weekDays = [];
+  let currentDay = weekStartDate;
+  for (let i = 0; i < 7; i++) {
+    weekDays.push(addDays(currentDay, i));
+  }
+
+  const handleSubmitForApproval = () => {
+    handleUpdateWeekStatus("pending");
   };
-  
-  const handleCustomerChange = (rowIndex: number, customerId: string) => {
-    const newRows = [...rows];
-    newRows[rowIndex].customerId = customerId;
-    newRows[rowIndex].projectId = "";
-    setRows(newRows);
+
+  const handleApprove = () => {
+    handleUpdateWeekStatus("approved");
   };
-  
-  const handleProjectChange = (rowIndex: number, projectId: string) => {
-    const newRows = [...rows];
-    newRows[rowIndex].projectId = projectId;
-    setRows(newRows);
+
+  const handleReject = () => {
+    handleUpdateWeekStatus("rejected");
   };
-  
-  const handleDescriptionChange = (rowIndex: number, description: string) => {
-    const newRows = [...rows];
-    newRows[rowIndex].description = description;
-    setRows(newRows);
+
+  const handleReopen = () => {
+    handleUpdateWeekStatus("reopened");
   };
-  
-  const handleHoursChange = (rowIndex: number, dayIndex: number, hours: string) => {
-    const newRows = [...rows];
-    newRows[rowIndex].hours[dayIndex] = hours;
-    setRows(newRows);
-  };
-  
-  const addRow = () => {
-    setRows([...rows, emptyRow()]);
-  };
-  
-  const getProjectsForCustomer = (customerId: string) => {
-    return activeProjects.filter(p => p.customerId === customerId);
-  };
-  
-  const calculateDailyTotal = (dayIndex: number): number => {
-    let total = 0;
-    
-    // Add hours from new rows
-    rows.forEach(row => {
-      const hours = parseFloat(row.hours[dayIndex] || '0');
-      if (!isNaN(hours)) {
-        total += hours;
-      }
-    });
-    
-    // Add hours from existing entries
-    existingEntries.forEach(entry => {
-      const hours = parseFloat(entry.hours[dayIndex] || '0');
-      if (!isNaN(hours)) {
-        total += hours;
-      }
-    });
-    
-    return total;
-  };
-  
-  const calculateWeekTotal = (): number => {
-    let total = 0;
-    for (let i = 0; i < 7; i++) {
-      total += calculateDailyTotal(i);
-    }
-    return total;
-  };
-  
-  const getDailyTotalColor = (hours: number): string => {
-    return hours > 8 ? 'text-orange-500 font-bold' : '';
-  };
-  
-  const saveEntries = () => {
-    let entriesAdded = 0;
-    
-    rows.forEach(row => {
-      if (!row.customerId || !row.projectId) return;
-      
-      Object.entries(row.hours).forEach(([dayIndex, hoursStr]) => {
-        if (!hoursStr) return;
-        
-        const hours = parseFloat(hoursStr);
-        if (isNaN(hours) || hours <= 0) return;
-        
-        const day = addDays(weekStart, parseInt(dayIndex));
-        
-        addTimeEntry({
-          date: format(day, "yyyy-MM-dd"),
-          customerId: row.customerId,
-          projectId: row.projectId,
-          hours,
-          description: row.description,
-        });
-        
-        entriesAdded++;
-      });
-    });
-    
-    toast({
-      title: "Time entries saved",
-      description: `Added ${entriesAdded} time ${entriesAdded === 1 ? 'entry' : 'entries'} for the week`,
-    });
-    
-    if (entriesAdded > 0) {
-      setRows([emptyRow()]);
-    }
-  };
-  
-  const submitTimesheet = () => {
-    updateWeekStatus(weekStartISO, "pending");
-    
-    toast({
-      title: "Timesheet submitted",
-      description: "Your timesheet has been submitted for approval",
-    });
-  };
-  
-  const approveTimesheet = () => {
-    updateWeekStatus(weekStartISO, "approved");
-    
-    toast({
-      title: "Timesheet approved",
-      description: "Timesheet has been approved",
-    });
-  };
-  
-  const rejectTimesheet = () => {
-    updateWeekStatus(weekStartISO, "rejected");
-    
-    toast({
-      title: "Timesheet rejected",
-      description: "Timesheet has been rejected",
-    });
-  };
-  
-  const reopenTimesheet = () => {
-    updateWeekStatus(weekStartISO, "reopened");
-    
-    toast({
-      title: "Timesheet reopened",
-      description: "Timesheet has been reopened for editing",
-    });
-  };
-  
-  const getStatusBadge = (status: WeekStatus["status"]) => {
-    switch (status) {
-      case "approved":
-        return <Badge className="bg-green-500">Approved</Badge>;
-      case "rejected":
-        return <Badge className="bg-red-500">Rejected</Badge>;
-      case "pending":
-        return <Badge className="bg-yellow-500">Pending Approval</Badge>;
-      case "reopened":
-        return <Badge className="bg-blue-500">Reopened</Badge>;
-      case "draft":
-      default:
-        return <Badge className="bg-gray-500">Draft</Badge>;
-    }
-  };
-  
-  const canEdit = canEditTimesheet(weekStartISO);
-  
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">Weekly Time Entry</h2>
-          {weekStatus && (
-            <div className="mt-1">
-              Status: {getStatusBadge(weekStatus.status)}
-            </div>
-          )}
-        </div>
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Weekly Time Entry</h2>
         
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={handlePreviousWeek}>
-            <ChevronLeft className="h-4 w-4" />
+        <div className="flex items-center space-x-2">
+          <Button variant="outline" size="sm" onClick={handlePreviousWeek}>
+            Previous Week
           </Button>
           
           <Popover>
             <PopoverTrigger asChild>
               <Button
-                variant="outline"
-                className={cn(
-                  "justify-start text-left font-normal w-[240px]"
-                )}
+                variant={"outline"}
+                className={""}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(weekStart, "MMM dd")} - {format(weekEnd, "MMM dd, yyyy")}
+                {format(weekStartDate, "MMMM d, yyyy")} - {format(endOfWeek(weekStartDate, { weekStartsOn: 1 }), "MMMM d, yyyy")}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
+            <PopoverContent className="w-auto p-0" align="center" side="bottom">
               <Calendar
                 mode="single"
-                selected={weekStart}
-                onSelect={(date) => date && setWeekStart(startOfWeek(date, { weekStartsOn: 1 }))}
-                initialFocus
-                className={cn("p-3 pointer-events-auto")}
+                captionLayout="dropdown"
+                weekStartsOn={1}
+                selected={selectedDate}
+                onSelect={handleDateSelect}
+                disabled={(date) =>
+                  date < new Date("2020-01-01") || date > new Date("2030-01-01")
+                }
+                className="rounded-md border shadow-sm"
               />
             </PopoverContent>
           </Popover>
-          
-          <Button variant="outline" size="icon" onClick={handleNextWeek}>
-            <ChevronRight className="h-4 w-4" />
+
+          <Button variant="outline" size="sm" onClick={handleNextWeek}>
+            Next Week
           </Button>
         </div>
       </div>
-      
-      {existingEntries.length > 0 && (
-        <>
-          <h3 className="text-lg font-semibold mt-6">Existing Time Entries</h3>
-          <div className="border rounded-lg overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[180px]">Customer</TableHead>
-                  <TableHead className="w-[180px]">Project</TableHead>
-                  <TableHead className="w-[200px]">Description</TableHead>
-                  {weekDays.map((day, index) => (
-                    <TableHead key={index} className="text-center min-w-[80px]">
-                      <div>{format(day, "EEE")}</div>
-                      <div className="text-xs text-muted-foreground">{format(day, "MMM d")}</div>
-                    </TableHead>
-                  ))}
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Date</TableHead>
+            <TableHead>Customer / Project</TableHead>
+            <TableHead>Description</TableHead>
+            <TableHead className="text-right">Hours</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="w-[100px]">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {weekDays.map(day => {
+            const dayEntries = getDayEntries(day);
+            const formattedDate = format(day, "yyyy-MM-dd");
+            const totalHours = dayEntries.reduce((sum, entry) => sum + entry.hours, 0);
+
+            return (
+              <React.Fragment key={formattedDate}>
+                <TableRow className={isToday(day) ? "bg-brand-50 font-medium" : ""}>
+                  <TableCell className="font-semibold">{format(day, "EEE, MMM d")}</TableCell>
+                  <TableCell colSpan={2} className="text-muted-foreground">
+                    Total: {totalHours.toFixed(1)} hours
+                  </TableCell>
+                  <TableCell className="text-right"></TableCell>
+                  <TableCell></TableCell>
+                  <TableCell>
+                    {isToday(day) && canEdit && (
+                      <Button variant="ghost" size="sm" onClick={handleOpenDialog}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Entry
+                      </Button>
+                    )}
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {existingEntries.map((entry, entryIndex) => (
-                  <TableRow key={entryIndex}>
-                    <TableCell>{getCustomerName(entry.customerId)}</TableCell>
-                    <TableCell>{getProjectName(entry.projectId)}</TableCell>
-                    <TableCell>{entry.description}</TableCell>
-                    {[0, 1, 2, 3, 4, 5, 6].map((dayIndex) => (
-                      <TableCell key={dayIndex} className="text-center">
-                        {entry.hours[dayIndex] || "-"}
+                {dayEntries.length > 0 ? (
+                  dayEntries.map(entry => (
+                    <TableRow key={entry.id}>
+                      <TableCell></TableCell>
+                      <TableCell>
+                        <div className="font-medium">{getCustomerName(entry.customerId)}</div>
+                        <div className="text-sm text-muted-foreground">{getProjectName(entry.projectId)}</div>
                       </TableCell>
-                    ))}
+                      <TableCell className="max-w-[200px] truncate">{entry.description || "No description"}</TableCell>
+                      <TableCell className="text-right">{entry.hours.toFixed(1)}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          entry.status === "approved" ? "bg-green-100 text-green-800" :
+                          entry.status === "rejected" ? "bg-red-100 text-red-800" :
+                          entry.status === "pending" ? "bg-yellow-100 text-yellow-800" :
+                          "bg-gray-100 text-gray-800"
+                        }`}>
+                          {entry.status ? entry.status.charAt(0).toUpperCase() + entry.status.slice(1) : "Draft"}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {canEdit && (
+                              <DropdownMenuItem onClick={() => handleOpenEditDialog(entry.id)}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                <span>Edit</span>
+                              </DropdownMenuItem>
+                            )}
+                            {canEdit && (
+                              <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteTimeEntry(entry.id)}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                <span>Delete</span>
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow key={`empty-${formattedDate}`}>
+                    <TableCell></TableCell>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">No entries for this day</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </>
-      )}
-      
-      {canEdit && (
-        <>
-          <h3 className="text-lg font-semibold mt-6">New Time Entries</h3>
-          <div className="border rounded-lg overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[180px]">Customer</TableHead>
-                  <TableHead className="w-[180px]">Project</TableHead>
-                  <TableHead className="w-[200px]">Description</TableHead>
-                  {weekDays.map((day, index) => (
-                    <TableHead key={index} className="text-center min-w-[80px]">
-                      <div>{format(day, "EEE")}</div>
-                      <div className="text-xs text-muted-foreground">{format(day, "MMM d")}</div>
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row, rowIndex) => (
-                  <TableRow key={rowIndex}>
-                    <TableCell>
-                      <Select 
-                        value={row.customerId} 
-                        onValueChange={(value) => handleCustomerChange(rowIndex, value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select customer" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {activeCustomers.map((customer) => (
-                            <SelectItem key={customer.id} value={customer.id}>
-                              {customer.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Select 
-                        value={row.projectId} 
-                        onValueChange={(value) => handleProjectChange(rowIndex, value)}
-                        disabled={!row.customerId}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select project" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {row.customerId && getProjectsForCustomer(row.customerId).map((project) => (
-                            <SelectItem key={project.id} value={project.id}>
-                              {project.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Input 
-                        placeholder="Description" 
-                        value={row.description}
-                        onChange={(e) => handleDescriptionChange(rowIndex, e.target.value)}
-                      />
-                    </TableCell>
-                    {[0, 1, 2, 3, 4, 5, 6].map((dayIndex) => (
-                      <TableCell key={dayIndex} className="text-center">
-                        <Input 
-                          type="number"
-                          placeholder="0"
-                          min="0"
-                          step="0.5"
-                          value={row.hours[dayIndex] || ""}
-                          onChange={(e) => handleHoursChange(rowIndex, dayIndex, e.target.value)}
-                          className="w-16 mx-auto text-center"
-                          disabled={!row.customerId || !row.projectId}
-                        />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-              <TableFooter>
-                <TableRow className="bg-muted/50">
-                  <TableCell colSpan={3} className="font-medium text-right">
-                    Daily Total
-                    <Clock className="h-4 w-4 inline ml-1" />
-                  </TableCell>
-                  {[0, 1, 2, 3, 4, 5, 6].map((dayIndex) => {
-                    const dailyTotal = calculateDailyTotal(dayIndex);
-                    return (
-                      <TableCell 
-                        key={dayIndex} 
-                        className={cn(
-                          "text-center font-medium",
-                          getDailyTotalColor(dailyTotal)
-                        )}
-                      >
-                        {dailyTotal.toFixed(1)}
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-                <TableRow className="bg-muted/30">
-                  <TableCell colSpan={3} className="font-medium text-right">
-                    Week Total
-                    <Clock className="h-4 w-4 inline ml-1" />
-                  </TableCell>
-                  <TableCell colSpan={7} className="text-center font-medium">
-                    {calculateWeekTotal().toFixed(1)}
-                  </TableCell>
-                </TableRow>
-              </TableFooter>
-            </Table>
-          </div>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </TableBody>
+      </Table>
+
+      {/* Add Time Entry Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Time Entry</DialogTitle>
+            <DialogDescription>
+              Add a new time entry for the selected date.
+            </DialogDescription>
+          </DialogHeader>
           
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={addRow}>
-              <Plus className="mr-2 h-4 w-4" /> Add Row
-            </Button>
-            <div className="space-x-2">
-              <Button onClick={saveEntries}>
-                <Save className="mr-2 h-4 w-4" /> Save
-              </Button>
-              {!canManageTimesheets() && weekStatus?.status !== "pending" && (
-                <Button 
-                  onClick={submitTimesheet}
-                  variant="secondary"
-                >
-                  <Send className="mr-2 h-4 w-4" /> Submit for Approval
-                </Button>
-              )}
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="date">Date</Label>
+              <Input
+                id="date"
+                value={format(date, "MMMM d, yyyy")}
+                disabled
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="customer">Customer</Label>
+              <Select value={customerId} onValueChange={setCustomerId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select customer" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.filter(c => c.active).map(customer => (
+                    <SelectItem key={customer.id} value={customer.id}>
+                      {customer.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="project">Project</Label>
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customerId ? (
+                    getProjectsForCustomer(customerId).map(project => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>
+                      Select a customer first
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="hours">Hours</Label>
+              <Input
+                id="hours"
+                type="number"
+                placeholder="Enter hours"
+                value={hours === undefined ? "" : hours.toString()}
+                onChange={(e) => setHours(e.target.value ? parseFloat(e.target.value) : undefined)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                placeholder="Enter description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
             </div>
           </div>
-        </>
-      )}
-      
-      {/* Admin Actions */}
-      {canManageTimesheets() && weekStatus && weekStatus.status !== "draft" && (
-        <div className="border p-4 rounded-lg mt-4 bg-muted/30">
-          <h3 className="text-lg font-semibold mb-2">Admin Actions</h3>
-          <div className="flex gap-2">
-            {weekStatus.status !== "approved" && (
-              <Button 
-                variant="outline" 
-                className="bg-green-500/10 hover:bg-green-500/20 text-green-700"
-                onClick={approveTimesheet}
-              >
-                <CheckCircle className="mr-2 h-4 w-4" /> Approve Timesheet
-              </Button>
-            )}
-            {weekStatus.status !== "rejected" && (
-              <Button 
-                variant="outline"
-                className="bg-red-500/10 hover:bg-red-500/20 text-red-700"
-                onClick={rejectTimesheet}
-              >
-                <XCircle className="mr-2 h-4 w-4" /> Reject Timesheet
-              </Button>
-            )}
-            {weekStatus.status !== "reopened" && weekStatus.status !== "draft" && (
-              <Button 
-                variant="outline"
-                onClick={reopenTimesheet}
-              >
-                Reopen for Editing
-              </Button>
-            )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              resetForm();
+              setIsDialogOpen(false);
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddTimeEntry}>Add Entry</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Time Entry Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Time Entry</DialogTitle>
+            <DialogDescription>
+              Edit the time entry for the selected date.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-date">Date</Label>
+              <Input
+                id="edit-date"
+                value={format(date, "MMMM d, yyyy")}
+                disabled
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="edit-customer">Customer</Label>
+              <Select value={customerId} onValueChange={setCustomerId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select customer" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.filter(c => c.active).map(customer => (
+                    <SelectItem key={customer.id} value={customer.id}>
+                      {customer.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="edit-project">Project</Label>
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customerId ? (
+                    getProjectsForCustomer(customerId).map(project => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>
+                      Select a customer first
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="edit-hours">Hours</Label>
+              <Input
+                id="edit-hours"
+                type="number"
+                placeholder="Enter hours"
+                value={hours === undefined ? "" : hours.toString()}
+                onChange={(e) => setHours(e.target.value ? parseFloat(e.target.value) : undefined)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                placeholder="Enter description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
           </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              resetForm();
+              setIsEditDialogOpen(false);
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditTimeEntry}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Week Status Actions */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="text-lg font-medium">Week Status</h3>
+          <p className="text-muted-foreground">
+            Current status:{" "}
+            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              weekStatus?.status === "approved" ? "bg-green-100 text-green-800" :
+              weekStatus?.status === "rejected" ? "bg-red-100 text-red-800" :
+              weekStatus?.status === "pending" ? "bg-yellow-100 text-yellow-800" :
+              weekStatus?.status === "reopened" ? "bg-blue-100 text-blue-800" :
+              "bg-gray-100 text-gray-800"
+            }`}>
+              {weekStatus?.status ? weekStatus.status.charAt(0).toUpperCase() + weekStatus.status.slice(1) : "Draft"}
+            </span>
+          </p>
         </div>
-      )}
+        <div>
+          {weekStatus?.status === "draft" && (
+            <Button onClick={handleSubmitForApproval} disabled={!canEdit}>
+              <Clock className="mr-2 h-4 w-4" />
+              Submit for Approval
+            </Button>
+          )}
+          {canManageTimesheets() && weekStatus?.status === "pending" && (
+            <>
+              <Button variant="ghost" onClick={handleApprove}>
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Approve
+              </Button>
+              <Button variant="ghost" onClick={handleReject}>
+                <XCircle className="mr-2 h-4 w-4" />
+                Reject
+              </Button>
+            </>
+          )}
+          {canManageTimesheets() && weekStatus?.status !== "draft" && weekStatus?.status !== "reopened" && (
+            <Button onClick={handleReopen}>Reopen</Button>
+          )}
+          {/* Regular users can only edit if the week is in draft or reopened status */}
+          {/* Admins can always edit */}
+          {/* Regular users can edit only if draft or reopened */}
+          {weekStatus?.status !== "draft" && weekStatus?.status !== "reopened" && !canManageTimesheets() && (
+            <span className="text-muted-foreground">
+              Timesheet is locked for editing.
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

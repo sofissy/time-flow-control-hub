@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { format, startOfWeek, parseISO, isWithinInterval, addDays } from "date-fns";
 
@@ -16,6 +17,8 @@ export type Project = {
   customerId: string;
   description: string;
   active: boolean;
+  budget?: number; // Budget in days
+  budgetCost?: number; // Budget in currency (euros)
 };
 
 export type TimeEntry = {
@@ -40,6 +43,7 @@ export type User = {
   name: string;
   email: string;
   role: UserRole;
+  dailyRate?: number; // Daily rate in euros
 };
 
 type AppContextType = {
@@ -76,6 +80,8 @@ type AppContextType = {
   canManageTimesheets: () => boolean;
   canEditTimeEntry: (entry: TimeEntry) => boolean;
   canEditTimesheet: (weekStart: string) => boolean;
+  getProjectActuals: (projectId: string) => { days: number; cost: number };
+  getDailyRateForUser: (userId: string) => number;
 };
 
 // Create the context with a default value
@@ -113,6 +119,8 @@ const sampleProjects: Project[] = [
     customerId: "c1",
     description: "Complete redesign of corporate website",
     active: true,
+    budget: 20, // 20 days
+    budgetCost: 10000, // 10,000 euros
   },
   {
     id: "p2",
@@ -120,6 +128,8 @@ const sampleProjects: Project[] = [
     customerId: "c1",
     description: "iOS and Android app development",
     active: true,
+    budget: 45, // 45 days
+    budgetCost: 22500, // 22,500 euros
   },
   {
     id: "p3",
@@ -127,6 +137,8 @@ const sampleProjects: Project[] = [
     customerId: "c2",
     description: "Annual security audit and penetration testing",
     active: true,
+    budget: 15, // 15 days
+    budgetCost: 7500, // 7,500 euros
   },
   {
     id: "p4",
@@ -134,6 +146,8 @@ const sampleProjects: Project[] = [
     customerId: "c3",
     description: "Integration of AI technologies into existing products",
     active: false,
+    budget: 30, // 30 days
+    budgetCost: 15000, // 15,000 euros
   },
 ];
 
@@ -184,12 +198,14 @@ const sampleUsers: User[] = [
     name: "Regular User",
     email: "user@example.com",
     role: "user",
+    dailyRate: 400, // 400 euros per day
   },
   {
     id: "u2",
     name: "Admin User",
     email: "admin@example.com",
     role: "admin",
+    dailyRate: 600, // 600 euros per day
   }
 ];
 
@@ -224,6 +240,40 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const deleteUser = (id: string) => {
     setUsers(users.filter(u => u.id !== id));
+  };
+
+  // Budget and resource rate utilities
+  const getDailyRateForUser = (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    return user?.dailyRate || 0;
+  };
+  
+  const getProjectActuals = (projectId: string) => {
+    // Calculate total hours spent on this project
+    const projectEntries = timeEntries.filter(
+      entry => entry.projectId === projectId && entry.status === "approved"
+    );
+    
+    const totalHours = projectEntries.reduce((total, entry) => total + entry.hours, 0);
+    
+    // Convert hours to days (assuming 8 hour workday)
+    const totalDays = totalHours / 8;
+    
+    // Calculate cost based on user daily rates
+    let totalCost = 0;
+    
+    projectEntries.forEach(entry => {
+      // Find the user who created this entry (in a real app, entries would have userId)
+      // Here we're using the current user as a placeholder
+      const userDailyRate = currentUser.dailyRate || 0;
+      const entryCost = (entry.hours / 8) * userDailyRate;
+      totalCost += entryCost;
+    });
+    
+    return {
+      days: parseFloat(totalDays.toFixed(1)),
+      cost: Math.round(totalCost)
+    };
   };
 
   // Permission checks
@@ -456,6 +506,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     canManageTimesheets,
     canEditTimeEntry,
     canEditTimesheet,
+    getProjectActuals,
+    getDailyRateForUser,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

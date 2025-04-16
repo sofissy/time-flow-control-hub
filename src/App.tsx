@@ -11,6 +11,7 @@ import Customers from "./pages/Customers";
 import Projects from "./pages/Projects";
 import Reports from "./pages/Reports";
 import WeeklyEntry from "./pages/WeeklyEntry";
+import Users from "./pages/Users";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/projects" element={<Projects />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/weekly" element={<WeeklyEntry />} />
+            <Route path="/users" element={<Users />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </TooltipProvider>

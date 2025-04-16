@@ -36,12 +36,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Briefcase, Plus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Briefcase, Plus, MoreHorizontal, Pencil, Trash2, EuroIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Project } from "@/context/AppContext";
 
 const ProjectList = () => {
-  const { projects, customers, addProject, updateProject, deleteProject } = useAppContext();
+  const { projects, customers, addProject, updateProject, deleteProject, getProjectActuals } = useAppContext();
   const { toast } = useToast();
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -53,6 +53,8 @@ const ProjectList = () => {
   const [customerId, setCustomerId] = useState("");
   const [description, setDescription] = useState("");
   const [active, setActive] = useState(true);
+  const [budget, setBudget] = useState<number | undefined>(undefined);
+  const [budgetCost, setBudgetCost] = useState<number | undefined>(undefined);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
   const activeCustomers = customers.filter(c => c.active);
@@ -81,6 +83,8 @@ const ProjectList = () => {
       customerId,
       description,
       active,
+      budget,
+      budgetCost,
     });
 
     resetForm();
@@ -119,6 +123,8 @@ const ProjectList = () => {
       customerId,
       description,
       active,
+      budget,
+      budgetCost,
     });
 
     resetForm();
@@ -148,6 +154,8 @@ const ProjectList = () => {
     setCustomerId(project.customerId);
     setDescription(project.description);
     setActive(project.active);
+    setBudget(project.budget);
+    setBudgetCost(project.budgetCost);
     setIsEditDialogOpen(true);
   };
 
@@ -161,12 +169,36 @@ const ProjectList = () => {
     setCustomerId("");
     setDescription("");
     setActive(true);
+    setBudget(undefined);
+    setBudgetCost(undefined);
     setSelectedProject(null);
   };
 
   const getCustomerName = (customerId: string) => {
     const customer = customers.find(c => c.id === customerId);
     return customer ? customer.name : 'Unknown';
+  };
+
+  // Function to calculate and format budget utilization
+  const getBudgetUtilization = (project: Project) => {
+    if (!project.budget) return "No budget";
+    
+    const actuals = getProjectActuals(project.id);
+    const daysPercentage = project.budget > 0 
+      ? Math.round((actuals.days / project.budget) * 100) 
+      : 0;
+    
+    return (
+      <div className="flex flex-col">
+        <div className="text-sm font-medium">{actuals.days} / {project.budget} days ({daysPercentage}%)</div>
+        {project.budgetCost && (
+          <div className="text-xs text-muted-foreground flex items-center">
+            <EuroIcon className="h-3 w-3 mr-1" />
+            {actuals.cost.toLocaleString()} / {project.budgetCost.toLocaleString()}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -227,6 +259,29 @@ const ProjectList = () => {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                 />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="budget">Budget (days)</Label>
+                  <Input
+                    id="budget"
+                    type="number"
+                    placeholder="Total days"
+                    value={budget === undefined ? "" : budget}
+                    onChange={(e) => setBudget(e.target.value ? Number(e.target.value) : undefined)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="budgetCost">Budget (€)</Label>
+                  <Input
+                    id="budgetCost"
+                    type="number"
+                    placeholder="Total cost"
+                    value={budgetCost === undefined ? "" : budgetCost}
+                    onChange={(e) => setBudgetCost(e.target.value ? Number(e.target.value) : undefined)}
+                  />
+                </div>
               </div>
               
               <div className="flex items-center space-x-2">
@@ -298,6 +353,29 @@ const ProjectList = () => {
                 />
               </div>
               
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-budget">Budget (days)</Label>
+                  <Input
+                    id="edit-budget"
+                    type="number"
+                    placeholder="Total days"
+                    value={budget === undefined ? "" : budget}
+                    onChange={(e) => setBudget(e.target.value ? Number(e.target.value) : undefined)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-budgetCost">Budget (€)</Label>
+                  <Input
+                    id="edit-budgetCost"
+                    type="number"
+                    placeholder="Total cost"
+                    value={budgetCost === undefined ? "" : budgetCost}
+                    onChange={(e) => setBudgetCost(e.target.value ? Number(e.target.value) : undefined)}
+                  />
+                </div>
+              </div>
+              
               <div className="flex items-center space-x-2">
                 <Switch
                   id="edit-active"
@@ -348,6 +426,7 @@ const ProjectList = () => {
             <TableHead>Name</TableHead>
             <TableHead>Customer</TableHead>
             <TableHead>Description</TableHead>
+            <TableHead>Budget Utilization</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="w-[100px]">Actions</TableHead>
           </TableRow>
@@ -357,7 +436,8 @@ const ProjectList = () => {
             <TableRow key={project.id}>
               <TableCell className="font-medium">{project.name}</TableCell>
               <TableCell>{getCustomerName(project.customerId)}</TableCell>
-              <TableCell className="max-w-[300px] truncate">{project.description}</TableCell>
+              <TableCell className="max-w-[200px] truncate">{project.description}</TableCell>
+              <TableCell>{getBudgetUtilization(project)}</TableCell>
               <TableCell>
                 <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                   project.active 
