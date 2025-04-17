@@ -41,6 +41,14 @@ const EntryRow = ({
   getAvailableProjectsForRow,
   isLastRow
 }: EntryRowProps) => {
+  // Handle hour input change with proper validation
+  const handleHourChange = (rowId: string, date: string, value: string) => {
+    // Allow empty string, decimal point, or numbers
+    if (value === '' || value === '.' || /^\d*\.?\d*$/.test(value)) {
+      onUpdateHours(rowId, date, value);
+    }
+  };
+
   return (
     <tr>
       <td>
@@ -96,7 +104,7 @@ const EntryRow = ({
           <Input
             className="w-16 mx-auto text-center"
             value={row.hours[date] || "0"}
-            onChange={(e) => onUpdateHours(row.id, date, e.target.value)}
+            onChange={(e) => handleHourChange(row.id, date, e.target.value)}
           />
         </td>
       ))}

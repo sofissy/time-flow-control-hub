@@ -82,14 +82,13 @@ const WeeklyDirectEntry = () => {
           ));
         }}
         onUpdateHours={(rowId, date, hours) => {
-          const numericHours = hours.replace(/[^0-9.]/g, '');
           setEntryRows(entryRows.map(row => {
             if (row.id === rowId) {
               return {
                 ...row,
                 hours: {
                   ...row.hours,
-                  [date]: numericHours
+                  [date]: hours
                 }
               };
             }
