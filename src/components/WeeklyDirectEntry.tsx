@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { format, addDays, startOfWeek, endOfWeek, parseISO, isSameDay } from "date-fns";
 import { useAppContext } from "@/context/AppContext";
@@ -232,7 +231,15 @@ const WeeklyDirectEntry = () => {
     
     if (hasErrors) return;
     
-    // Save valid entries
+    // First, remove any existing entries for this week
+    const start = format(weekStartDate, "yyyy-MM-dd");
+    const end = format(endOfWeek(weekStartDate, { weekStartsOn: 1 }), "yyyy-MM-dd");
+    
+    weekEntries.forEach(entry => {
+      deleteTimeEntry(entry.id);
+    });
+    
+    // Then save the new entries
     entryRows.forEach(row => {
       Object.entries(row.hours).forEach(([date, hours]) => {
         const hoursValue = parseFloat(hours);
