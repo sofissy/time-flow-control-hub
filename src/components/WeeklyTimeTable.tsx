@@ -4,7 +4,7 @@ import { format, startOfWeek, addDays, parseISO } from "date-fns";
 import { useToast } from "@/components/ui/use-toast"; 
 import { useAppContext, TimeEntry } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Check, X, AlertCircle, Clock } from "lucide-react";
@@ -130,9 +130,9 @@ const WeeklyTimeTable = () => {
   // Get color class based on daily hours
   const getDailyTotalColorClass = (hours: number): string => {
     if (hours === 0) return "text-gray-400";
-    if (hours < 4) return "text-red-500 font-medium";
-    if (hours < 8) return "text-amber-500 font-medium";
+    if (hours > 8) return "text-red-500 font-bold";
     if (hours === 8) return "text-green-500 font-medium";
+    if (hours < 4) return "text-amber-500 font-medium";
     return "text-blue-500 font-medium";
   };
   
@@ -267,7 +267,7 @@ const WeeklyTimeTable = () => {
       
       <Card className="p-4 mt-4">
         <div className="flex justify-between items-center">
-          <div className="text-lg font-medium">Weekly Total: <span className="font-bold">{getWeeklyTotal()} hours</span></div>
+          <div className="text-lg font-medium">Weekly Total: <span className={cn("font-bold", getDailyTotalColorClass(getWeeklyTotal()))}>{getWeeklyTotal()} hours</span></div>
         </div>
       </Card>
       

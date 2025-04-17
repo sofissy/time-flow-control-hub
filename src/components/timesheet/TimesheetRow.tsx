@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useMemo } from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { format, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,15 @@ const TimesheetRow = ({
   onApprove,
   onReject,
 }: TimesheetRowProps) => {
+  // Function to determine color class based on hours
+  const getHoursColorClass = (hours: number): string => {
+    if (hours === 0) return "text-muted-foreground";
+    if (hours > 8) return "text-red-600 font-bold";
+    if (hours === 8) return "text-green-600";
+    if (hours > 0) return "text-amber-600";
+    return "text-muted-foreground";
+  };
+
   return (
     <TableRow>
       <TableCell className="font-medium">
@@ -43,9 +52,7 @@ const TimesheetRow = ({
       {days.map((day, i) => (
         <TableCell key={i} className="text-center">
           {day.hours > 0 ? (
-            <span className={cn(
-              day.hours >= 8 ? "text-green-600" : "text-amber-600"
-            )}>
+            <span className={cn(getHoursColorClass(day.hours))}>
               {day.hours.toFixed(1)}
             </span>
           ) : (
@@ -54,7 +61,7 @@ const TimesheetRow = ({
         </TableCell>
       ))}
       
-      <TableCell className="text-center font-bold">
+      <TableCell className={cn("text-center font-bold", getHoursColorClass(totalHours))}>
         {totalHours.toFixed(1)}
       </TableCell>
       
