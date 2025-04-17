@@ -39,7 +39,7 @@ const WeeklyDirectEntry = () => {
   const { toast } = useToast();
 
   const [weekStartDate, setWeekStartDate] = useState(startOfWeek(selectedDate, { weekStartsOn: 1 }));
-  const [weekEntries, setWeekEntries] = useState(timeEntries);
+  const [weekEntries, setWeekEntries] = useState<any[]>([]);
   const [entryRows, setEntryRows] = useState<TimeEntryRow[]>([]);
   
   const weekStartISO = format(weekStartDate, "yyyy-MM-dd");
@@ -64,7 +64,7 @@ const WeeklyDirectEntry = () => {
     setWeekEntries(filteredEntries);
     
     // Group entries by customer and project
-    const entriesByProject: Record<string, Record<string, any[]>> = {};
+    const entriesByProject: Record<string, Record<string, any>> = {};
     
     filteredEntries.forEach(entry => {
       const key = `${entry.customerId}-${entry.projectId}`;
@@ -97,6 +97,35 @@ const WeeklyDirectEntry = () => {
     
     setEntryRows(rows);
   }, [timeEntries, weekStartDate]);
+
+  // Calculate daily totals
+  const getDailyTotals = () => {
+    const dailyTotals: Record<string, number> = {};
+    
+    weekDays.forEach(day => {
+      const dateKey = format(day, "yyyy-MM-dd");
+      dailyTotals[dateKey] = 0;
+      
+      // Sum hours for each entry on this day
+      entryRows.forEach(row => {
+        if (row.hours[dateKey]) {
+          const hours = parseFloat(row.hours[dateKey]) || 0;
+          dailyTotals[dateKey] += hours;
+        }
+      });
+    });
+    
+    return dailyTotals;
+  };
+  
+  const dailyTotals = getDailyTotals();
+  
+  // Helper function to determine cell background color based on hours
+  const getDailyTotalColor = (hours: number) => {
+    if (hours > 8) return "bg-red-100 text-red-800 font-medium";
+    if (hours > 0) return "bg-green-50 text-green-800";
+    return "";
+  };
 
   const handlePreviousWeek = () => {
     const previousWeek = addDays(weekStartDate, -7);
@@ -280,13 +309,13 @@ const WeeklyDirectEntry = () => {
               <TableRow>
                 <TableHead className="w-1/6">Customer</TableHead>
                 <TableHead className="w-1/6">Project</TableHead>
+                <TableHead className="w-1/6">Description</TableHead>
                 {weekDays.map(day => (
                   <TableHead key={format(day, "yyyy-MM-dd")} className="text-center">
                     {format(day, "EEE")}<br />
                     {format(day, "MMM d")}
                   </TableHead>
                 ))}
-                <TableHead className="w-1/6">Description</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
@@ -336,6 +365,15 @@ const WeeklyDirectEntry = () => {
                     </Select>
                   </TableCell>
                   
+                  <TableCell className="p-1">
+                    <Input
+                      placeholder="Description"
+                      className="h-8 text-xs"
+                      value={row.description}
+                      onChange={(e) => updateRow(row.id, 'description', e.target.value)}
+                    />
+                  </TableCell>
+                  
                   {weekDays.map(day => {
                     const formattedDate = format(day, "yyyy-MM-dd");
                     const isToday = isSameDay(day, new Date());
@@ -358,15 +396,6 @@ const WeeklyDirectEntry = () => {
                   })}
                   
                   <TableCell className="p-1">
-                    <Input
-                      placeholder="Description"
-                      className="h-8 text-xs"
-                      value={row.description}
-                      onChange={(e) => updateRow(row.id, 'description', e.target.value)}
-                    />
-                  </TableCell>
-                  
-                  <TableCell className="p-1">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -378,6 +407,29 @@ const WeeklyDirectEntry = () => {
                   </TableCell>
                 </TableRow>
               ))}
+              
+              {/* Daily totals row */}
+              <TableRow className="font-medium">
+                <TableCell colSpan={3} className="text-right p-1">
+                  Daily totals:
+                </TableCell>
+                {weekDays.map(day => {
+                  const dateKey = format(day, "yyyy-MM-dd");
+                  const total = dailyTotals[dateKey] || 0;
+                  return (
+                    <TableCell 
+                      key={`total-${dateKey}`} 
+                      className={cn(
+                        "text-center p-1",
+                        getDailyTotalColor(total)
+                      )}
+                    >
+                      {total > 0 ? total.toFixed(1) : "-"}
+                    </TableCell>
+                  );
+                })}
+                <TableCell className="p-1"></TableCell>
+              </TableRow>
               
               <TableRow>
                 <TableCell colSpan={9 + weekDays.length} className="p-1">
@@ -422,13 +474,13 @@ const WeeklyDirectEntry = () => {
               <TableRow>
                 <TableHead className="w-1/6">Customer</TableHead>
                 <TableHead className="w-1/6">Project</TableHead>
+                <TableHead className="w-1/6">Description</TableHead>
                 {weekDays.map(day => (
                   <TableHead key={format(day, "yyyy-MM-dd")} className="text-center">
                     {format(day, "EEE")}<br />
                     {format(day, "MMM d")}
                   </TableHead>
                 ))}
-                <TableHead className="w-1/6">Description</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -436,6 +488,7 @@ const WeeklyDirectEntry = () => {
                 <TableRow key={row.id}>
                   <TableCell>{getCustomerName(row.customerId)}</TableCell>
                   <TableCell>{getProjectName(row.projectId)}</TableCell>
+                  <TableCell>{row.description}</TableCell>
                   
                   {weekDays.map(day => {
                     const formattedDate = format(day, "yyyy-MM-dd");
@@ -446,10 +499,30 @@ const WeeklyDirectEntry = () => {
                       </TableCell>
                     );
                   })}
-                  
-                  <TableCell>{row.description}</TableCell>
                 </TableRow>
               ))}
+              
+              {/* Daily totals row for read-only view */}
+              <TableRow className="font-medium">
+                <TableCell colSpan={3} className="text-right">
+                  Daily totals:
+                </TableCell>
+                {weekDays.map(day => {
+                  const dateKey = format(day, "yyyy-MM-dd");
+                  const total = dailyTotals[dateKey] || 0;
+                  return (
+                    <TableCell 
+                      key={`total-${dateKey}`} 
+                      className={cn(
+                        "text-center",
+                        getDailyTotalColor(total)
+                      )}
+                    >
+                      {total > 0 ? total.toFixed(1) : "-"}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
               
               {entryRows.length === 0 && (
                 <TableRow>
