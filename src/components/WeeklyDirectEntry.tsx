@@ -31,8 +31,6 @@ const WeeklyDirectEntry = () => {
     hours: { [key: string]: string };
     customerId: string;
   }[]>([]);
-  const [availableProjects, setAvailableProjects] = useState<typeof projects>(projects);
-  const [selectedCustomer, setSelectedCustomer] = useState<string>("all");
   
   const weekDates = [...Array(7)].map((_, i) => {
     const date = addDays(weekStartDate, i);
@@ -51,14 +49,6 @@ const WeeklyDirectEntry = () => {
     
     console.log("WeeklyDirectEntry - Current time entries:", timeEntries.length);
   }, []);
-  
-  useEffect(() => {
-    if (selectedCustomer && selectedCustomer !== "all") {
-      setAvailableProjects(getProjectsByCustomer(selectedCustomer));
-    } else {
-      setAvailableProjects(projects);
-    }
-  }, [selectedCustomer, getProjectsByCustomer, projects]);
   
   const addEmptyRow = () => {
     const emptyHours: { [key: string]: string } = {};
@@ -82,13 +72,21 @@ const WeeklyDirectEntry = () => {
   const removeRow = (id: string) => {
     setEntryRows(entryRows.filter(row => row.id !== id));
   };
+
+  const updateRowCustomer = (rowId: string, customerId: string) => {
+    setEntryRows(entryRows.map(row => 
+      row.id === rowId ? 
+      { ...row, customerId, project: "" } : // Reset project when customer changes
+      row
+    ));
+  };
   
   const updateRowProject = (rowId: string, projectId: string) => {
     const project = projects.find(p => p.id === projectId);
     if (project) {
       setEntryRows(entryRows.map(row => 
         row.id === rowId ? 
-        { ...row, project: projectId, customerId: project.customerId } : 
+        { ...row, project: projectId } : 
         row
       ));
     }
@@ -147,7 +145,7 @@ const WeeklyDirectEntry = () => {
             task: row.task,
             hours: hoursValue,
             notes: row.notes || "",
-            customerId: row.customerId || project.customerId,
+            customerId: row.customerId,
             projectId: row.project,
             description: row.notes || "",
           });
@@ -185,36 +183,29 @@ const WeeklyDirectEntry = () => {
     }
   };
 
+  // Get available projects for a specific row based on its customer selection
+  const getAvailableProjectsForRow = (rowCustomerId: string) => {
+    if (!rowCustomerId) {
+      return [];
+    }
+    return projects.filter(p => p.active && p.customerId === rowCustomerId);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">Weekly Time Entry</h2>
-        <div className="flex space-x-2">
-          <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filter by customer" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Customers</SelectItem>
-              {customers.filter(c => c.active).map(customer => (
-                <SelectItem key={customer.id} value={customer.id}>
-                  {customer.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Button onClick={handleSaveEntries}>
-            <Save className="mr-2 h-4 w-4" />
-            Save All Entries
-          </Button>
-        </div>
+        <Button onClick={handleSaveEntries}>
+          <Save className="mr-2 h-4 w-4" />
+          Save All Entries
+        </Button>
       </div>
       
       <div className="bg-white rounded-lg border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-40">Customer</TableHead>
               <TableHead className="w-40">Project</TableHead>
               <TableHead className="w-40">Task</TableHead>
               {weekDates.map((date, index) => (
@@ -232,15 +223,35 @@ const WeeklyDirectEntry = () => {
               <TableRow key={row.id}>
                 <TableCell>
                   <Select 
+                    value={row.customerId || undefined} 
+                    onValueChange={(value) => updateRowCustomer(row.id, value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select customer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers
+                        .filter(c => c.active)
+                        .map(customer => (
+                          <SelectItem key={customer.id} value={customer.id}>
+                            {customer.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                
+                <TableCell>
+                  <Select 
                     value={row.project || undefined} 
                     onValueChange={(value) => updateRowProject(row.id, value)}
+                    disabled={!row.customerId}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select project" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(selectedCustomer !== "all" ? availableProjects : projects)
-                        .filter(p => p.active)
+                      {getAvailableProjectsForRow(row.customerId)
                         .map(project => (
                           <SelectItem key={project.id} value={project.id}>
                             {project.name}
