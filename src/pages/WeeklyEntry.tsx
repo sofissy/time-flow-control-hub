@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { parseISO } from "date-fns";
@@ -8,8 +9,9 @@ import { useAppContext } from "@/context/AppContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const WeeklyEntry = () => {
-  const { canManageTimesheets, setSelectedWeekDate } = useAppContext();
+  const { canManageTimesheets, setSelectedWeekDate, getWeekStatus } = useAppContext();
   const location = useLocation();
+  const [activeTab, setActiveTab] = useState("entry");
   
   useEffect(() => {
     // Check if a date was passed via state
@@ -33,7 +35,7 @@ const WeeklyEntry = () => {
       
       <main className="container py-6">
         {canManageTimesheets() ? (
-          <Tabs defaultValue="entry">
+          <Tabs defaultValue="entry" value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-4">
               <TabsTrigger value="entry">My Time Entry</TabsTrigger>
               <TabsTrigger value="summary">Timesheet Summary</TabsTrigger>

@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check } from "lucide-react";
+import { Check, Send } from "lucide-react";
 
 interface TimesheetHeaderProps {
   weekStartDate: Date;
@@ -32,13 +32,17 @@ const TimesheetHeader = ({
       case 'approved': return 'bg-green-500';
       case 'rejected': return 'bg-red-500';
       case 'submitted': return 'bg-blue-500';
+      case 'pending': return 'bg-blue-500';  // Added pending to match with other components
       case 'reopened': return 'bg-amber-500';
       default: return 'bg-gray-500';
     }
   };
 
-  // Determine if we should show the submit button
-  const shouldShowSubmitButton = isEditable && (weekStatus === '' || weekStatus === 'draft' || weekStatus === 'reopened');
+  // Determine if we should show the submit button - Made this more permissive
+  // Also show button for empty string status (initial state)
+  const shouldShowSubmitButton = isEditable && (!weekStatus || weekStatus === '' || weekStatus === 'draft' || weekStatus === 'reopened');
+
+  console.log("TimesheetHeader state:", { weekStatus, isEditable, shouldShowButton: shouldShowSubmitButton });
 
   return (
     <Card className="p-4">
@@ -59,8 +63,9 @@ const TimesheetHeader = ({
               size="sm"
               variant="outline" 
               onClick={() => onSubmit(format(weekStartDate, 'yyyy-MM-dd'), 'submitted')}
+              className="ml-2"
             >
-              <Check className="mr-1 h-4 w-4" />
+              <Send className="mr-1 h-4 w-4" />
               Submit
             </Button>
           )}

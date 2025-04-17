@@ -31,7 +31,11 @@ const WeeklyTimeTable = () => {
       title: `Timesheet ${status}`,
       description: `Timesheet has been ${status} successfully`,
     });
+
+    console.log("Timesheet submitted:", { weekStartISO, status });
   };
+
+  console.log("WeeklyTimeTable renders with:", { weekStatus, isEditable });
 
   return (
     <div className="space-y-4">
