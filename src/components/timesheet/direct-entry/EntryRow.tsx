@@ -73,7 +73,7 @@ const EntryRow = ({
             <SelectValue placeholder="Select project" />
           </SelectTrigger>
           <SelectContent>
-            {getAvailableProjectsForRow(row.customerId)
+            {row.customerId && getAvailableProjectsForRow(row.customerId)
               .map(project => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.name}

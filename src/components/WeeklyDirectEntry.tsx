@@ -9,7 +9,7 @@ import { useTimeEntries } from "@/hooks/useTimeEntries";
 import { useTimeCalculations } from "@/hooks/useTimeCalculations";
 
 const WeeklyDirectEntry = () => {
-  const { selectedDate } = useAppContext();
+  const { selectedDate, customers, getProjectsByCustomer } = useAppContext();
   
   const [weekStartDate, setWeekStartDate] = useState<Date>(
     startOfWeek(selectedDate, { weekStartsOn: 1 })
@@ -37,6 +37,11 @@ const WeeklyDirectEntry = () => {
     calculateWeeklyTotal
   } = useTimeCalculations();
 
+  // Function to get available projects for a specific customer
+  const getAvailableProjectsForRow = (customerId: string) => {
+    return getProjectsByCustomer(customerId);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center mb-4">
@@ -50,6 +55,7 @@ const WeeklyDirectEntry = () => {
       <TimeEntryTable
         weekDates={weekDates}
         entryRows={entryRows}
+        customers={customers}
         onRemoveRow={(id) => setEntryRows(entryRows.filter(row => row.id !== id))}
         onUpdateCustomer={(rowId, customerId) => {
           setEntryRows(entryRows.map(row => 
@@ -93,6 +99,7 @@ const WeeklyDirectEntry = () => {
         calculateDailyTotal={(date) => calculateDailyTotal(entryRows, date)}
         getDailyTotalColorClass={getDailyTotalColorClass}
         calculateWeeklyTotal={() => calculateWeeklyTotal(entryRows)}
+        getAvailableProjectsForRow={getAvailableProjectsForRow}
       />
       
       <div className="flex justify-between">
