@@ -14,10 +14,10 @@ import { useToast } from "@/hooks/use-toast";
 // Define the type for a row entry
 type TimeEntryRow = {
   id: string;
-  customerId: string;
-  projectId: string;
+  project: string;
+  task: string;
   hours: Record<string, string>; // Map of date string to hours
-  description: string;
+  notes: string;
 };
 
 const WeeklyDirectEntry = () => {
@@ -32,7 +32,6 @@ const WeeklyDirectEntry = () => {
     updateWeekStatus,
     selectedDate, 
     setSelectedDate, 
-    getProjectsByCustomer,
     canEditTimesheet
   } = useAppContext();
   const { toast } = useToast();
@@ -62,17 +61,17 @@ const WeeklyDirectEntry = () => {
     const filteredEntries = timeEntries.filter(entry => entry.date >= start && entry.date <= end);
     setWeekEntries(filteredEntries);
     
-    // Group entries by customer and project
+    // Group entries by project and task
     const entriesByProject: Record<string, Record<string, any>> = {};
     
     filteredEntries.forEach(entry => {
-      const key = `${entry.customerId}-${entry.projectId}`;
+      const key = `${entry.project}-${entry.task}`;
       if (!entriesByProject[key]) {
         entriesByProject[key] = {
           entries: [],
-          customerId: entry.customerId,
-          projectId: entry.projectId,
-          description: entry.description
+          project: entry.project,
+          task: entry.task,
+          notes: entry.notes
         };
       }
       entriesByProject[key].entries.push(entry);
@@ -86,11 +85,11 @@ const WeeklyDirectEntry = () => {
       });
       
       return {
-        id: `${group.customerId}-${group.projectId}`,
-        customerId: group.customerId,
-        projectId: group.projectId,
+        id: `${group.project}-${group.task}`,
+        project: group.project,
+        task: group.task,
         hours,
-        description: group.description || '',
+        notes: group.notes || '',
       };
     });
     
@@ -141,10 +140,10 @@ const WeeklyDirectEntry = () => {
   const addNewRow = () => {
     const newRow: TimeEntryRow = {
       id: `new-${Date.now()}`,
-      customerId: "",
-      projectId: "",
+      project: "",
+      task: "",
       hours: {},
-      description: ""
+      notes: ""
     };
     setEntryRows(prev => [...prev, newRow]);
   };
@@ -180,7 +179,7 @@ const WeeklyDirectEntry = () => {
 
   const getProjectName = (id: string) => {
     const project = projects.find(p => p.id === id);
-    return project ? project.name : "Unknown";
+    return project ? project.name : id || "Unknown";
   };
 
   const getCustomerName = (id: string) => {
@@ -188,28 +187,28 @@ const WeeklyDirectEntry = () => {
     return customer ? customer.name : "Unknown";
   };
 
-  const getAvailableProjectsForCustomer = (customerId: string) => {
-    return projects.filter(p => p.customerId === customerId && p.active);
+  const getAvailableProjects = () => {
+    return projects.filter(p => p.active);
   };
 
   const saveAllEntries = () => {
     let hasErrors = false;
     
     entryRows.forEach(row => {
-      if (!row.customerId) {
+      if (!row.project) {
         toast({
-          title: "Customer required",
-          description: "Please select a customer for all entries",
+          title: "Project required",
+          description: "Please select a project for all entries",
           variant: "destructive",
         });
         hasErrors = true;
         return;
       }
       
-      if (!row.projectId) {
+      if (!row.task) {
         toast({
-          title: "Project required",
-          description: "Please select a project for all entries",
+          title: "Task required",
+          description: "Please select a task for all entries",
           variant: "destructive",
         });
         hasErrors = true;
@@ -246,10 +245,10 @@ const WeeklyDirectEntry = () => {
         if (hoursValue > 0) {
           addTimeEntry({
             date,
-            customerId: row.customerId,
-            projectId: row.projectId,
+            project: row.project,
+            task: row.task,
             hours: hoursValue,
-            description: row.description || "",
+            notes: row.notes || "",
           });
         }
       });
@@ -314,9 +313,9 @@ const WeeklyDirectEntry = () => {
           <Table className="border">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-1/6">Customer</TableHead>
                 <TableHead className="w-1/6">Project</TableHead>
-                <TableHead className="w-1/6">Description</TableHead>
+                <TableHead className="w-1/6">Task</TableHead>
+                <TableHead className="w-1/6">Notes</TableHead>
                 {weekDays.map(day => (
                   <TableHead key={format(day, "yyyy-MM-dd")} className="text-center">
                     {format(day, "EEE")}<br />
@@ -331,16 +330,16 @@ const WeeklyDirectEntry = () => {
                 <TableRow key={row.id}>
                   <TableCell className="p-1">
                     <Select 
-                      value={row.customerId} 
-                      onValueChange={(value) => updateRow(row.id, 'customerId', value)}
+                      value={row.project} 
+                      onValueChange={(value) => updateRow(row.id, 'project', value)}
                     >
                       <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Select customer" />
+                        <SelectValue placeholder="Select project" />
                       </SelectTrigger>
                       <SelectContent>
-                        {customers.filter(c => c.active).map(customer => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            {customer.name}
+                        {getAvailableProjects().map(project => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -348,36 +347,20 @@ const WeeklyDirectEntry = () => {
                   </TableCell>
                   
                   <TableCell className="p-1">
-                    <Select 
-                      value={row.projectId} 
-                      onValueChange={(value) => updateRow(row.id, 'projectId', value)}
-                      disabled={!row.customerId}
-                    >
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Select project" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {row.customerId ? (
-                          getAvailableProjectsForCustomer(row.customerId).map(project => (
-                            <SelectItem key={project.id} value={project.id}>
-                              {project.name}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="no-customer" disabled>
-                            Select a customer first
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      placeholder="Task"
+                      className="h-8 text-xs"
+                      value={row.task}
+                      onChange={(e) => updateRow(row.id, 'task', e.target.value)}
+                    />
                   </TableCell>
                   
                   <TableCell className="p-1">
                     <Input
-                      placeholder="Description"
+                      placeholder="Notes"
                       className="h-8 text-xs"
-                      value={row.description}
-                      onChange={(e) => updateRow(row.id, 'description', e.target.value)}
+                      value={row.notes}
+                      onChange={(e) => updateRow(row.id, 'notes', e.target.value)}
                     />
                   </TableCell>
                   
@@ -479,9 +462,9 @@ const WeeklyDirectEntry = () => {
           <Table className="border">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-1/6">Customer</TableHead>
                 <TableHead className="w-1/6">Project</TableHead>
-                <TableHead className="w-1/6">Description</TableHead>
+                <TableHead className="w-1/6">Task</TableHead>
+                <TableHead className="w-1/6">Notes</TableHead>
                 {weekDays.map(day => (
                   <TableHead key={format(day, "yyyy-MM-dd")} className="text-center">
                     {format(day, "EEE")}<br />
@@ -493,9 +476,9 @@ const WeeklyDirectEntry = () => {
             <TableBody>
               {entryRows.map((row) => (
                 <TableRow key={row.id}>
-                  <TableCell>{getCustomerName(row.customerId)}</TableCell>
-                  <TableCell>{getProjectName(row.projectId)}</TableCell>
-                  <TableCell>{row.description}</TableCell>
+                  <TableCell>{getProjectName(row.project)}</TableCell>
+                  <TableCell>{row.task}</TableCell>
+                  <TableCell>{row.notes}</TableCell>
                   
                   {weekDays.map(day => {
                     const formattedDate = format(day, "yyyy-MM-dd");

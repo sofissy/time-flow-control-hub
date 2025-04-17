@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -58,6 +59,7 @@ interface AppContextInterface {
   getWeekStatus: (weekStart: string) => WeekStatus | undefined;
   updateWeekStatus: (weekStart: string, status: string) => void;
   canManageTimesheets: () => boolean;
+  canEditTimesheet: (weekStartDate: string) => boolean;
   currentUser: User;
   setSelectedDate: (date: Date) => void;
   setSelectedWeekDate: (date: Date) => void;
@@ -78,6 +80,7 @@ export const AppContext = createContext<AppContextInterface>({
   getWeekStatus: () => undefined,
   updateWeekStatus: () => {},
   canManageTimesheets: () => false,
+  canEditTimesheet: () => true,
   currentUser: { id: "", name: "", email: "", role: "" },
   setSelectedDate: () => {},
   setSelectedWeekDate: (date: Date) => {},
@@ -168,6 +171,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     // Check if the current user has the 'admin' role
     return currentUser.role === "admin";
   };
+  
+  // Function to determine if a timesheet can be edited based on its status
+  const canEditTimesheet = (weekStartDate: string): boolean => {
+    const status = getWeekStatus(weekStartDate)?.status;
+    // Can edit if the status is draft or doesn't exist yet
+    return !status || status === "draft" || status === "reopened";
+  };
 
   const currentUser = users[0];
 
@@ -190,6 +200,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     getWeekStatus,
     updateWeekStatus,
     canManageTimesheets,
+    canEditTimesheet,
     currentUser,
     setSelectedDate,
     setSelectedWeekDate,
