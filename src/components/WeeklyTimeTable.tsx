@@ -55,6 +55,7 @@ const WeeklyTimeTable = () => {
       });
       
       setWeekEntries(entries);
+      console.log("Week entries loaded:", entries.length);
       
       // Get week status
       const weekStart = format(weekStartDate, 'yyyy-MM-dd');
@@ -64,7 +65,7 @@ const WeeklyTimeTable = () => {
       // Check if timesheet is editable
       setIsEditable(canEditTimesheet(weekStart));
     }
-  }, [weekDates, timeEntries, getEntriesForDate, getWeekStatus, canEditTimesheet]);
+  }, [weekDates, timeEntries, getEntriesForDate, getWeekStatus, canEditTimesheet, weekStartDate]);
   
   // Group entries by project and date
   const getGroupedEntries = () => {
@@ -85,7 +86,10 @@ const WeeklyTimeTable = () => {
       const project = projects.find(p => p.id === entry.projectId);
       const customer = customers.find(c => c.id === entry.customerId);
       
-      if (!project || !customer) return;
+      if (!project || !customer) {
+        console.log("Missing project or customer for entry:", entry);
+        return;
+      }
       
       if (!groupedByProject[entry.projectId]) {
         groupedByProject[entry.projectId] = {
@@ -163,6 +167,8 @@ const WeeklyTimeTable = () => {
     }
   };
 
+  const groupedEntries = getGroupedEntries();
+
   return (
     <div className="space-y-4">
       <Card className="p-4">
@@ -208,43 +214,53 @@ const WeeklyTimeTable = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {getGroupedEntries().map((projectGroup) => (
-              <TableRow key={projectGroup.projectId}>
-                <TableCell className="font-medium text-sm">
-                  {projectGroup.customerName}
-                </TableCell>
-                <TableCell className="font-medium">
-                  {projectGroup.projectName}
-                </TableCell>
-                
-                {weekDates.map(date => (
-                  <TableCell key={date} className="text-center">
-                    {projectGroup.dates[date]?.hours || 0}
-                  </TableCell>
+            {groupedEntries.length > 0 ? (
+              <>
+                {groupedEntries.map((projectGroup) => (
+                  <TableRow key={projectGroup.projectId}>
+                    <TableCell className="font-medium text-sm">
+                      {projectGroup.customerName}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {projectGroup.projectName}
+                    </TableCell>
+                    
+                    {weekDates.map(date => (
+                      <TableCell key={date} className="text-center">
+                        {projectGroup.dates[date]?.hours || 0}
+                      </TableCell>
+                    ))}
+                    
+                    <TableCell className="text-center font-medium">
+                      {Object.values(projectGroup.dates).reduce((sum, day) => sum + day.hours, 0)}
+                    </TableCell>
+                  </TableRow>
                 ))}
                 
-                <TableCell className="text-center font-medium">
-                  {Object.values(projectGroup.dates).reduce((sum, day) => sum + day.hours, 0)}
+                <TableRow className="bg-muted/50">
+                  <TableCell colSpan={2} className="font-medium">
+                    Daily Total
+                  </TableCell>
+                  {weekDates.map(date => {
+                    const hours = getDailyTotal(date);
+                    return (
+                      <TableCell key={date} className={cn("text-center font-medium", getDailyTotalColorClass(hours))}>
+                        {hours}
+                      </TableCell>
+                    );
+                  })}
+                  <TableCell className="text-center font-bold text-lg bg-muted">
+                    {getWeeklyTotal()}
+                  </TableCell>
+                </TableRow>
+              </>
+            ) : (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  No time entries found for this week. Use the "My Time Entry" tab to add entries.
                 </TableCell>
               </TableRow>
-            ))}
-            
-            <TableRow className="bg-muted/50">
-              <TableCell colSpan={2} className="font-medium">
-                Daily Total
-              </TableCell>
-              {weekDates.map(date => {
-                const hours = getDailyTotal(date);
-                return (
-                  <TableCell key={date} className={cn("text-center font-medium", getDailyTotalColorClass(hours))}>
-                    {hours}
-                  </TableCell>
-                );
-              })}
-              <TableCell className="text-center font-bold text-lg bg-muted">
-                {getWeeklyTotal()}
-              </TableCell>
-            </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>

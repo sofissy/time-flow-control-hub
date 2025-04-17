@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { format, startOfWeek, addDays } from 'date-fns';
 import { useAppContext } from "@/context/AppContext";
@@ -6,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { Plus, Save, Trash2 } from "lucide-react";
 
 const WeeklyDirectEntry = () => {
@@ -16,7 +17,8 @@ const WeeklyDirectEntry = () => {
     projects, 
     getProjectsByCustomer,
     selectedDate,
-    getEntriesForDate
+    getEntriesForDate,
+    timeEntries
   } = useAppContext();
   const { toast } = useToast();
   
@@ -29,7 +31,7 @@ const WeeklyDirectEntry = () => {
     hours: { [key: string]: string };
     customerId: string;
   }[]>([]);
-  const [availableProjects, setAvailableProjects] = useState<typeof projects>([]);
+  const [availableProjects, setAvailableProjects] = useState<typeof projects>(projects);
   const [selectedCustomer, setSelectedCustomer] = useState<string>("all");
   
   const weekDates = [...Array(7)].map((_, i) => {
@@ -42,18 +44,21 @@ const WeeklyDirectEntry = () => {
   }, [selectedDate]);
   
   useEffect(() => {
+    // Initialize with an empty row if no rows exist
     if (entryRows.length === 0) {
       addEmptyRow();
     }
+    
+    console.log("WeeklyDirectEntry - Current time entries:", timeEntries.length);
   }, []);
   
   useEffect(() => {
     if (selectedCustomer && selectedCustomer !== "all") {
       setAvailableProjects(getProjectsByCustomer(selectedCustomer));
     } else {
-      setAvailableProjects([]);
+      setAvailableProjects(projects);
     }
-  }, [selectedCustomer, getProjectsByCustomer]);
+  }, [selectedCustomer, getProjectsByCustomer, projects]);
   
   const addEmptyRow = () => {
     const emptyHours: { [key: string]: string } = {};
@@ -122,21 +127,31 @@ const WeeklyDirectEntry = () => {
     let entriesAdded = 0;
     
     entryRows.forEach(row => {
-      if (!row.project) return;
+      if (!row.project) {
+        console.log("Skipping row without project");
+        return;
+      }
       
       Object.entries(row.hours).forEach(([date, hours]) => {
         const hoursValue = parseFloat(hours);
         if (hoursValue > 0) {
+          const project = projects.find(p => p.id === row.project);
+          if (!project) {
+            console.log("Project not found:", row.project);
+            return;
+          }
+          
           addTimeEntry({
             date,
             project: row.project,
             task: row.task,
             hours: hoursValue,
             notes: row.notes || "",
-            customerId: row.customerId,
+            customerId: row.customerId || project.customerId,
             projectId: row.project,
             description: row.notes || "",
           });
+          console.log("Added entry:", date, row.project, hoursValue);
           entriesAdded++;
         }
       });
