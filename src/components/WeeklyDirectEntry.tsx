@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
 import { Plus, Save, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const WeeklyDirectEntry = () => {
   const { 
@@ -191,6 +192,30 @@ const WeeklyDirectEntry = () => {
     return projects.filter(p => p.active && p.customerId === rowCustomerId);
   };
 
+  // Calculate daily totals for all entries
+  const calculateDailyTotal = (date: string) => {
+    return entryRows.reduce((total, row) => {
+      const hours = parseFloat(row.hours[date] || "0");
+      return total + hours;
+    }, 0);
+  };
+
+  // Function to determine color class based on hours
+  const getDailyTotalColorClass = (hours: number): string => {
+    if (hours === 0) return "text-gray-400";
+    if (hours > 8) return "text-red-500 font-bold";
+    if (hours === 8) return "text-green-500 font-medium";
+    if (hours < 4) return "text-amber-500 font-medium";
+    return "text-blue-500 font-medium";
+  };
+
+  // Calculate weekly total
+  const calculateWeeklyTotal = () => {
+    return weekDates.reduce((total, date) => {
+      return total + calculateDailyTotal(date);
+    }, 0);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center mb-4">
@@ -300,6 +325,27 @@ const WeeklyDirectEntry = () => {
                 </TableCell>
               </TableRow>
             ))}
+
+            {/* Daily totals row */}
+            <TableRow className="bg-muted/50">
+              <TableCell colSpan={3} className="font-medium">
+                Daily Total
+              </TableCell>
+              {weekDates.map(date => {
+                const dailyTotal = calculateDailyTotal(date);
+                return (
+                  <TableCell key={date} className={cn("text-center font-medium", getDailyTotalColorClass(dailyTotal))}>
+                    {dailyTotal}
+                  </TableCell>
+                );
+              })}
+              <TableCell className="font-medium">
+                Weekly Total:
+              </TableCell>
+              <TableCell className={cn("font-bold", getDailyTotalColorClass(calculateWeeklyTotal()))}>
+                {calculateWeeklyTotal()}
+              </TableCell>
+            </TableRow>
           </TableBody>
         </Table>
       </div>
