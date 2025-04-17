@@ -5,6 +5,7 @@ import { parseISO } from "date-fns";
 import Navbar from "@/components/Navbar";
 import WeeklyDirectEntry from "@/components/WeeklyDirectEntry";
 import TimesheetSummary from "@/components/TimesheetSummary";
+import WeeklyTimeTable from "@/components/WeeklyTimeTable";
 import { useAppContext } from "@/context/AppContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -45,7 +46,7 @@ const WeeklyEntry = () => {
             </TabsList>
             
             <TabsContent value="entry">
-              <WeeklyDirectEntry />
+              <WeeklyTimeTable />
             </TabsContent>
             
             <TabsContent value="summary">

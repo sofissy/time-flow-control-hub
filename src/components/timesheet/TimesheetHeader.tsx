@@ -38,11 +38,10 @@ const TimesheetHeader = ({
     }
   };
 
-  // Determine if we should show the submit button
-  // Make sure it shows when status is draft, reopened, or empty
-  const shouldShowSubmitButton = isEditable && (!weekStatus || weekStatus === '' || weekStatus === 'draft' || weekStatus === 'reopened');
+  // Force the submit button to be visible at all times for testing
+  const shouldShowSubmitButton = true;
 
-  console.log("TimesheetHeader state:", { weekStatus, isEditable, shouldShowSubmitButton });
+  console.log("TimesheetHeader state:", { weekStatus, isEditable, shouldShowSubmitButton, forceVisible: true });
 
   return (
     <Card className="p-4">
@@ -61,7 +60,7 @@ const TimesheetHeader = ({
           {shouldShowSubmitButton && (
             <Button 
               size="sm"
-              variant="outline" 
+              variant="default" 
               onClick={() => onSubmit(format(weekStartDate, 'yyyy-MM-dd'), 'submitted')}
               className="ml-2"
             >
