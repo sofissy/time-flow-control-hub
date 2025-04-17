@@ -42,6 +42,8 @@ const WeeklyDirectEntry = () => {
     return getProjectsByCustomer(customerId);
   };
 
+  console.log("Weekly direct entry rows:", entryRows);
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center mb-4">
@@ -56,6 +58,7 @@ const WeeklyDirectEntry = () => {
         weekDates={weekDates}
         entryRows={entryRows}
         customers={customers}
+        getAvailableProjectsForRow={getAvailableProjectsForRow}
         onRemoveRow={(id) => setEntryRows(entryRows.filter(row => row.id !== id))}
         onUpdateCustomer={(rowId, customerId) => {
           setEntryRows(entryRows.map(row => 
@@ -98,7 +101,6 @@ const WeeklyDirectEntry = () => {
         calculateDailyTotal={(date) => calculateDailyTotal(entryRows, date)}
         getDailyTotalColorClass={getDailyTotalColorClass}
         calculateWeeklyTotal={() => calculateWeeklyTotal(entryRows)}
-        getAvailableProjectsForRow={getAvailableProjectsForRow}
       />
       
       <div className="flex justify-between">

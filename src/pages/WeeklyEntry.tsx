@@ -46,7 +46,7 @@ const WeeklyEntry = () => {
             </TabsList>
             
             <TabsContent value="entry">
-              <WeeklyTimeTable />
+              <WeeklyDirectEntry />
             </TabsContent>
             
             <TabsContent value="summary">
