@@ -37,6 +37,9 @@ const TimesheetHeader = ({
     }
   };
 
+  // Determine if we should show the submit button
+  const shouldShowSubmitButton = isEditable && (weekStatus === '' || weekStatus === 'draft' || weekStatus === 'reopened');
+
   return (
     <Card className="p-4">
       <div className="flex justify-between items-center">
@@ -51,7 +54,7 @@ const TimesheetHeader = ({
             {weekStatus ? weekStatus.charAt(0).toUpperCase() + weekStatus.slice(1) : 'Draft'}
           </Badge>
           
-          {isEditable && weekStatus !== 'approved' && (
+          {shouldShowSubmitButton && (
             <Button 
               size="sm"
               variant="outline" 
