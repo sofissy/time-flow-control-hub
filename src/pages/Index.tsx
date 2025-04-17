@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { format, startOfWeek, parseISO, addDays } from "date-fns";
 import { useAppContext } from "@/context/AppContext";
@@ -31,6 +30,7 @@ import {
   XCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import TimesheetStatusBadge from "@/components/timesheet/TimesheetStatusBadge";
 
 const Index = () => {
   const { 
@@ -64,27 +64,13 @@ const Index = () => {
   
   const recentWeeks = getRecentWeeks();
   
-  const getStatusBadgeClass = (status: string | undefined) => {
-    // Add undefined check and provide a default value
-    if (!status) return "bg-gray-100 text-gray-800";
-    
-    switch (status) {
-      case "approved":
-        return "bg-green-100 text-green-800";
-      case "rejected":
-        return "bg-red-100 text-red-800";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "reopened":
-        return "bg-blue-100 text-blue-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-  
   const openWeeklyTimesheet = (date: Date) => {
-    // Navigate to the weekly entry page with the selected date
-    navigate('/weekly', { state: { selectedDate: date } });
+    // Fix: Navigate to the weekly entry page with the correct selected date
+    navigate('/weekly', { 
+      state: { 
+        selectedDate: format(date, "yyyy-MM-dd") 
+      } 
+    });
   };
 
   return (
@@ -129,11 +115,7 @@ const Index = () => {
                             {weekHours.toFixed(1)}
                           </TableCell>
                           <TableCell>
-                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusBadgeClass(weekStatus?.status)}`}>
-                              {weekStatus?.status 
-                                ? weekStatus.status.charAt(0).toUpperCase() + weekStatus.status.slice(1) 
-                                : "Draft"}
-                            </span>
+                            <TimesheetStatusBadge status={weekStatus?.status || "draft"} />
                           </TableCell>
                           <TableCell className="text-center">
                             <Button variant="ghost" size="sm" onClick={(e) => {
