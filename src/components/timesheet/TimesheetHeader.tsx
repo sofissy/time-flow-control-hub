@@ -32,17 +32,17 @@ const TimesheetHeader = ({
       case 'approved': return 'bg-green-500';
       case 'rejected': return 'bg-red-500';
       case 'submitted': return 'bg-blue-500';
-      case 'pending': return 'bg-blue-500';  // Added pending to match with other components
+      case 'pending': return 'bg-blue-500';
       case 'reopened': return 'bg-amber-500';
       default: return 'bg-gray-500';
     }
   };
 
-  // Determine if we should show the submit button - Made this more permissive
-  // Also show button for empty string status (initial state)
+  // Determine if we should show the submit button
+  // Make sure it shows when status is draft, reopened, or empty
   const shouldShowSubmitButton = isEditable && (!weekStatus || weekStatus === '' || weekStatus === 'draft' || weekStatus === 'reopened');
 
-  console.log("TimesheetHeader state:", { weekStatus, isEditable, shouldShowButton: shouldShowSubmitButton });
+  console.log("TimesheetHeader state:", { weekStatus, isEditable, shouldShowSubmitButton });
 
   return (
     <Card className="p-4">

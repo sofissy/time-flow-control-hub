@@ -29,6 +29,9 @@ const WeeklyEntry = () => {
     }
   }, [location.state, setSelectedWeekDate]);
 
+  // Add debug logging
+  console.log("WeeklyEntry rendering, activeTab:", activeTab);
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
