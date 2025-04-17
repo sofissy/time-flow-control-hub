@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { format, startOfWeek, addDays } from 'date-fns';
 import { useAppContext } from "@/context/AppContext";
@@ -7,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { Plus, Save, Trash2 } from "lucide-react";
 
 const WeeklyDirectEntry = () => {
@@ -31,36 +30,31 @@ const WeeklyDirectEntry = () => {
     customerId: string;
   }[]>([]);
   const [availableProjects, setAvailableProjects] = useState<typeof projects>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<string>("");
+  const [selectedCustomer, setSelectedCustomer] = useState<string>("all");
   
-  // Generate an array of dates for the current week
   const weekDates = [...Array(7)].map((_, i) => {
     const date = addDays(weekStartDate, i);
     return format(date, 'yyyy-MM-dd');
   });
   
-  // Update week start date when selected date changes
   useEffect(() => {
     setWeekStartDate(startOfWeek(selectedDate, { weekStartsOn: 1 }));
   }, [selectedDate]);
   
-  // Generate empty entry rows if there are none
   useEffect(() => {
     if (entryRows.length === 0) {
       addEmptyRow();
     }
   }, []);
   
-  // Update available projects when customer selection changes
   useEffect(() => {
-    if (selectedCustomer) {
+    if (selectedCustomer && selectedCustomer !== "all") {
       setAvailableProjects(getProjectsByCustomer(selectedCustomer));
     } else {
       setAvailableProjects([]);
     }
   }, [selectedCustomer, getProjectsByCustomer]);
   
-  // Add an empty row to the entry table
   const addEmptyRow = () => {
     const emptyHours: { [key: string]: string } = {};
     weekDates.forEach(date => {
@@ -80,12 +74,10 @@ const WeeklyDirectEntry = () => {
     ]);
   };
   
-  // Remove a row from the entry table
   const removeRow = (id: string) => {
     setEntryRows(entryRows.filter(row => row.id !== id));
   };
   
-  // Update the project for a row and set the customerId
   const updateRowProject = (rowId: string, projectId: string) => {
     const project = projects.find(p => p.id === projectId);
     if (project) {
@@ -97,21 +89,18 @@ const WeeklyDirectEntry = () => {
     }
   };
   
-  // Update the task for a row
   const updateRowTask = (rowId: string, task: string) => {
     setEntryRows(entryRows.map(row => 
       row.id === rowId ? { ...row, task } : row
     ));
   };
   
-  // Update the notes for a row
   const updateRowNotes = (rowId: string, notes: string) => {
     setEntryRows(entryRows.map(row => 
       row.id === rowId ? { ...row, notes } : row
     ));
   };
   
-  // Update hours for a specific date in a row
   const updateRowHours = (rowId: string, date: string, hours: string) => {
     const numericHours = hours.replace(/[^0-9.]/g, '');
     
@@ -129,13 +118,11 @@ const WeeklyDirectEntry = () => {
     }));
   };
   
-  // Handle saving all entries
   const handleSaveEntries = () => {
     let entriesAdded = 0;
     
-    // Add each entry with hours > 0
     entryRows.forEach(row => {
-      if (!row.project) return; // Skip rows without a project
+      if (!row.project) return;
       
       Object.entries(row.hours).forEach(([date, hours]) => {
         const hoursValue = parseFloat(hours);
@@ -161,7 +148,6 @@ const WeeklyDirectEntry = () => {
         description: `${entriesAdded} time entries have been saved successfully.`,
       });
       
-      // Reset to a single empty row after saving
       const emptyHours: { [key: string]: string } = {};
       weekDates.forEach(date => {
         emptyHours[date] = "0";
@@ -194,7 +180,7 @@ const WeeklyDirectEntry = () => {
               <SelectValue placeholder="Filter by customer" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Customers</SelectItem>
+              <SelectItem value="all">All Customers</SelectItem>
               {customers.filter(c => c.active).map(customer => (
                 <SelectItem key={customer.id} value={customer.id}>
                   {customer.name}
@@ -231,14 +217,14 @@ const WeeklyDirectEntry = () => {
               <TableRow key={row.id}>
                 <TableCell>
                   <Select 
-                    value={row.project} 
+                    value={row.project || undefined} 
                     onValueChange={(value) => updateRowProject(row.id, value)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select project" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(selectedCustomer ? availableProjects : projects)
+                      {(selectedCustomer !== "all" ? availableProjects : projects)
                         .filter(p => p.active)
                         .map(project => (
                           <SelectItem key={project.id} value={project.id}>
