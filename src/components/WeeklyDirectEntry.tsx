@@ -8,7 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CalendarIcon, Save, Clock } from "lucide-react";
+import { CalendarIcon, Save, Clock, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -21,6 +21,15 @@ type CellEditData = {
 
 // Define the type for the edit data state
 type EditDataType = Record<string, CellEditData>;
+
+// Define the type for a new row in inline entry
+type InlineEntry = {
+  id: string;
+  customerId: string;
+  projectId: string;
+  hours: string;
+  description: string;
+};
 
 const WeeklyDirectEntry = () => {
   const { 
@@ -44,6 +53,10 @@ const WeeklyDirectEntry = () => {
   const [editData, setEditData] = useState<EditDataType>({});
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [availableProjects, setAvailableProjects] = useState<any[]>([]);
+  
+  // State for inline entry rows
+  const [inlineEntries, setInlineEntries] = useState<InlineEntry[]>([]);
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   
   const weekStartISO = format(weekStartDate, "yyyy-MM-dd");
   const canEdit = canEditTimesheet(weekStartISO);
@@ -153,6 +166,110 @@ const WeeklyDirectEntry = () => {
     });
   };
 
+  // Function to initialize inline entry for a specific day
+  const initializeInlineEntry = (day: Date) => {
+    setSelectedDay(day);
+    // Add a new empty inline entry
+    addInlineEntryRow();
+  };
+
+  // Function to add a new inline entry row
+  const addInlineEntryRow = () => {
+    const newEntry: InlineEntry = {
+      id: `new-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      customerId: "",
+      projectId: "",
+      hours: "",
+      description: ""
+    };
+    
+    setInlineEntries(prev => [...prev, newEntry]);
+  };
+
+  // Function to update an inline entry field
+  const updateInlineEntry = (id: string, field: keyof InlineEntry, value: string) => {
+    setInlineEntries(prev => 
+      prev.map(entry => 
+        entry.id === id ? { ...entry, [field]: value } : entry
+      )
+    );
+  };
+
+  // Function to remove an inline entry row
+  const removeInlineEntry = (id: string) => {
+    setInlineEntries(prev => prev.filter(entry => entry.id !== id));
+  };
+
+  // Function to get available projects for a specific customer
+  const getAvailableProjectsForCustomer = (customerId: string) => {
+    return projects.filter(p => p.customerId === customerId && p.active);
+  };
+
+  // Function to save all inline entries for the selected day
+  const saveInlineEntries = () => {
+    if (!selectedDay) return;
+    
+    const formattedDate = format(selectedDay, "yyyy-MM-dd");
+    
+    // Validate and save each entry
+    let hasErrors = false;
+    
+    inlineEntries.forEach(entry => {
+      if (!entry.customerId) {
+        toast({
+          title: "Customer required",
+          description: "Please select a customer for all entries",
+          variant: "destructive",
+        });
+        hasErrors = true;
+        return;
+      }
+      
+      if (!entry.projectId) {
+        toast({
+          title: "Project required",
+          description: "Please select a project for all entries",
+          variant: "destructive",
+        });
+        hasErrors = true;
+        return;
+      }
+      
+      const hoursValue = parseFloat(entry.hours || "0");
+      if (isNaN(hoursValue) || hoursValue <= 0) {
+        toast({
+          title: "Invalid hours",
+          description: "Hours must be a positive number for all entries",
+          variant: "destructive",
+        });
+        hasErrors = true;
+        return;
+      }
+    });
+    
+    if (hasErrors) return;
+    
+    // Save each valid entry
+    inlineEntries.forEach(entry => {
+      addTimeEntry({
+        date: formattedDate,
+        customerId: entry.customerId,
+        projectId: entry.projectId,
+        hours: parseFloat(entry.hours),
+        description: entry.description || "",
+      });
+    });
+    
+    // Clear inline entries after saving
+    setInlineEntries([]);
+    setSelectedDay(null);
+    
+    toast({
+      title: "Time entries added",
+      description: `Added ${inlineEntries.length} entries for ${format(selectedDay, "MMM dd, yyyy")}`,
+    });
+  };
+
   const getDayEntries = (date: Date) => {
     const formattedDate = format(date, "yyyy-MM-dd");
     return weekEntries.filter(entry => entry.date === formattedDate);
@@ -182,21 +299,6 @@ const WeeklyDirectEntry = () => {
         <h2 className="text-xl font-semibold">Weekly Time Entry</h2>
         
         <div className="flex items-center gap-4">
-          <div>
-            <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select customer" />
-              </SelectTrigger>
-              <SelectContent>
-                {customers.filter(c => c.active).map(customer => (
-                  <SelectItem key={customer.id} value={customer.id}>
-                    {customer.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="flex items-center space-x-2">
             <Button variant="outline" size="sm" onClick={handlePreviousWeek}>
               Previous Week
@@ -252,41 +354,113 @@ const WeeklyDirectEntry = () => {
                 const dayEntries = getDayEntries(day);
                 const isToday = isSameDay(day, new Date());
                 const cellData = editData[formattedDate];
+                const isSelectedDay = selectedDay && isSameDay(selectedDay, day);
                 
                 return (
                   <TableCell 
                     key={formattedDate} 
                     className={cn("border-l p-1", isToday ? "bg-muted/50" : "")}
                   >
-                    {canEdit ? (
+                    {canEdit && !isSelectedDay ? (
                       <div className="space-y-2 p-1">
-                        <Select 
-                          value={cellData?.projectId || ""} 
-                          onValueChange={(value) => handleCellChange(day, 'projectId', value)}
-                          disabled={!selectedCustomerId}
+                        {dayEntries.map((entry) => (
+                          <div key={entry.id} className="text-xs p-1 bg-muted/30 rounded">
+                            <div className="font-medium truncate">{getCustomerName(entry.customerId)}</div>
+                            <div className="truncate">{getProjectName(entry.projectId)}</div>
+                          </div>
+                        ))}
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full text-xs"
+                          onClick={() => initializeInlineEntry(day)}
                         >
-                          <SelectTrigger className="h-8">
-                            <SelectValue placeholder="Select project" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableProjects.map((project) => (
-                              <SelectItem key={project.id} value={project.id}>
-                                {project.name}
-                              </SelectItem>
-                            ))}
-                            {!selectedCustomerId && (
-                              <SelectItem value="no-customer" disabled>
-                                Select a customer first
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
+                          <Plus className="h-3 w-3 mr-1" /> Add Entry
+                        </Button>
+                      </div>
+                    ) : isSelectedDay ? (
+                      <div className="space-y-2">
+                        {inlineEntries.map((entry, index) => (
+                          <div key={entry.id} className="space-y-1 p-1 border rounded mb-2">
+                            <Select 
+                              value={entry.customerId} 
+                              onValueChange={(value) => updateInlineEntry(entry.id, 'customerId', value)}
+                            >
+                              <SelectTrigger className="h-7 text-xs">
+                                <SelectValue placeholder="Select customer" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {customers.filter(c => c.active).map(customer => (
+                                  <SelectItem key={customer.id} value={customer.id}>
+                                    {customer.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            
+                            <Select 
+                              value={entry.projectId} 
+                              onValueChange={(value) => updateInlineEntry(entry.id, 'projectId', value)}
+                              disabled={!entry.customerId}
+                            >
+                              <SelectTrigger className="h-7 text-xs">
+                                <SelectValue placeholder="Select project" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {entry.customerId ? (
+                                  getAvailableProjectsForCustomer(entry.customerId).map(project => (
+                                    <SelectItem key={project.id} value={project.id}>
+                                      {project.name}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <SelectItem value="no-customer" disabled>
+                                    Select a customer first
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                            
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => removeInlineEntry(entry.id)}
+                              >
+                                <Trash2 className="h-3 w-3 text-red-500" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="text-xs"
+                            onClick={addInlineEntryRow}
+                          >
+                            <Plus className="h-3 w-3 mr-1" /> Add row
+                          </Button>
+                          
+                          <Button 
+                            variant="default" 
+                            size="sm" 
+                            className="text-xs"
+                            onClick={saveInlineEntries}
+                            disabled={inlineEntries.length === 0}
+                          >
+                            <Save className="h-3 w-3 mr-1" /> Save all
+                          </Button>
+                        </div>
                       </div>
                     ) : (
                       <div className="space-y-1">
                         {dayEntries.map((entry) => (
                           <div key={entry.id} className="text-xs p-1 bg-muted/30 rounded">
-                            {getProjectName(entry.projectId)}
+                            <div className="font-medium truncate">{getCustomerName(entry.customerId)}</div>
+                            <div className="truncate">{getProjectName(entry.projectId)}</div>
                           </div>
                         ))}
                       </div>
@@ -304,25 +478,28 @@ const WeeklyDirectEntry = () => {
                 const totalHours = dayEntries.reduce((sum, entry) => sum + entry.hours, 0);
                 const isToday = isSameDay(day, new Date());
                 const cellData = editData[formattedDate];
+                const isSelectedDay = selectedDay && isSameDay(selectedDay, day);
                 
                 return (
                   <TableCell 
                     key={formattedDate} 
                     className={cn("border-l p-1", isToday ? "bg-muted/50" : "")}
                   >
-                    {canEdit ? (
-                      <div className="space-y-2 p-1">
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="number"
-                            min="0.1"
-                            step="0.1"
-                            placeholder="0.0"
-                            value={cellData?.hours || ""}
-                            onChange={(e) => handleCellChange(day, 'hours', e.target.value)}
-                            className="h-8"
-                          />
-                        </div>
+                    {isSelectedDay ? (
+                      <div className="space-y-2">
+                        {inlineEntries.map((entry) => (
+                          <div key={entry.id} className="mb-2 pt-1">
+                            <Input
+                              type="number"
+                              min="0.1"
+                              step="0.1"
+                              placeholder="0.0"
+                              value={entry.hours}
+                              onChange={(e) => updateInlineEntry(entry.id, 'hours', e.target.value)}
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <div className="text-center font-medium">
@@ -341,28 +518,25 @@ const WeeklyDirectEntry = () => {
                 const dayEntries = getDayEntries(day);
                 const isToday = isSameDay(day, new Date());
                 const cellData = editData[formattedDate];
+                const isSelectedDay = selectedDay && isSameDay(selectedDay, day);
                 
                 return (
                   <TableCell 
                     key={formattedDate} 
                     className={cn("border-l p-1", isToday ? "bg-muted/50" : "")}
                   >
-                    {canEdit ? (
-                      <div className="space-y-2 p-1">
-                        <Input
-                          placeholder="Description"
-                          value={cellData?.description || ""}
-                          onChange={(e) => handleCellChange(day, 'description', e.target.value)}
-                          className="h-8"
-                        />
-                        <Button 
-                          size="sm" 
-                          className="w-full"
-                          onClick={() => handleSaveEntry(day)}
-                          disabled={!cellData?.hours || !cellData?.projectId}
-                        >
-                          <Save className="h-3 w-3 mr-1" /> Save
-                        </Button>
+                    {isSelectedDay ? (
+                      <div className="space-y-2">
+                        {inlineEntries.map((entry) => (
+                          <div key={entry.id} className="mb-2 pt-1">
+                            <Input
+                              placeholder="Description"
+                              value={entry.description}
+                              onChange={(e) => updateInlineEntry(entry.id, 'description', e.target.value)}
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <div className="space-y-1">
@@ -440,4 +614,3 @@ const WeeklyDirectEntry = () => {
 };
 
 export default WeeklyDirectEntry;
-
