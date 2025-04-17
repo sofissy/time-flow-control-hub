@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { CalendarIcon, Plus, X, Check, Clock } from "lucide-react";
@@ -91,6 +90,9 @@ const TimeEntryForm = () => {
       projectId: selectedProject,
       hours: hoursValue,
       description,
+      project: selectedProject,
+      task: description,
+      notes: ""
     });
     
     // Reset form
