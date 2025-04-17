@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect } from "react";
-import { format, startOfWeek, endOfWeek, parseISO } from "date-fns";
+import { format, startOfWeek, endOfWeek, parseISO, addDays } from "date-fns";
 import { useAppContext } from "@/context/AppContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { CalendarIcon, CheckCircle, XCircle } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
@@ -19,7 +18,8 @@ const TimesheetSummary = () => {
     getWeekStatus,
     updateWeekStatus,
     canManageTimesheets, 
-    currentUser
+    currentUser,
+    getTotalHoursForWeek
   } = useAppContext();
   const { toast } = useToast();
   
@@ -41,24 +41,13 @@ const TimesheetSummary = () => {
   }, [selectedDate]);
   
   useEffect(() => {
-    const weekStart = format(weekStartDate, "yyyy-MM-dd");
-    const weekEnd = format(endOfWeek(weekStartDate, { weekStartsOn: 1 }), "yyyy-MM-dd");
-    
-    // In a real app, we'd have user IDs on time entries
-    // For demo purposes, we'll just show all entries for the week
-    const weekEntriesData = timeEntries.filter(entry => 
-      entry.date >= weekStart && 
-      entry.date <= weekEnd
-    );
+    const weekStartFormatted = format(weekStartDate, "yyyy-MM-dd");
     
     // Group by user - in a real app, this would use the entry.userId
     // For now we'll just group everything under the current user for demo purposes
     const summaries = users.map(user => {
-      // In a real app, filter by user ID
-      const userEntries = weekEntriesData;
-      
-      const totalHours = userEntries.reduce((sum, entry) => sum + entry.hours, 0);
-      const weekStatus = getWeekStatus(weekStart);
+      const totalHours = getTotalHoursForWeek(weekStartFormatted);
+      const weekStatus = getWeekStatus(weekStartFormatted);
       
       return {
         user,
@@ -66,7 +55,7 @@ const TimesheetSummary = () => {
         weekStatus: weekStatus?.status || "draft",
         days: [...Array(7)].map((_, i) => {
           const day = format(addDays(weekStartDate, i), "yyyy-MM-dd");
-          const dayEntries = userEntries.filter(e => e.date === day);
+          const dayEntries = timeEntries.filter(e => e.date === day);
           return {
             date: day,
             hours: dayEntries.reduce((sum, e) => sum + e.hours, 0)
@@ -76,7 +65,7 @@ const TimesheetSummary = () => {
     });
     
     setUserTimesheets(summaries);
-  }, [timeEntries, weekStartDate, users, getWeekStatus]);
+  }, [timeEntries, weekStartDate, users, getWeekStatus, getTotalHoursForWeek]);
   
   const handlePreviousWeek = () => {
     const previousWeek = addDays(weekStartDate, -7);
@@ -109,12 +98,6 @@ const TimesheetSummary = () => {
       description: "The timesheet has been rejected",
       variant: "destructive",
     });
-  };
-  
-  const addDays = (date: Date, days: number): Date => {
-    const result = new Date(date);
-    result.setDate(result.getDate() + days);
-    return result;
   };
   
   const getStatusBadgeClasses = (status: string) => {
