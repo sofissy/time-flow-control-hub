@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Check, X, AlertCircle, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const WeeklyTimeTable = () => {
   const { toast } = useToast();
@@ -71,6 +72,7 @@ const WeeklyTimeTable = () => {
       projectId: string,
       projectName: string,
       customerName: string,
+      customerId: string,
       dates: Record<string, {
         hours: number,
         entries: TimeEntry[]
@@ -90,6 +92,7 @@ const WeeklyTimeTable = () => {
           projectId: entry.projectId,
           projectName: project.name,
           customerName: customer.name,
+          customerId: customer.id,
           dates: {}
         };
       }
@@ -118,6 +121,15 @@ const WeeklyTimeTable = () => {
   // Calculate total weekly hours
   const getWeeklyTotal = (): number => {
     return weekEntries.reduce((total, entry) => total + entry.hours, 0);
+  };
+  
+  // Get color class based on daily hours
+  const getDailyTotalColorClass = (hours: number): string => {
+    if (hours === 0) return "text-gray-400";
+    if (hours < 4) return "text-red-500 font-medium";
+    if (hours < 8) return "text-amber-500 font-medium";
+    if (hours === 8) return "text-green-500 font-medium";
+    return "text-blue-500 font-medium";
   };
   
   const handleUpdateWeekStatus = (weekStartISO: string, status: string) => {
@@ -184,6 +196,7 @@ const WeeklyTimeTable = () => {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-32">Customer</TableHead>
               <TableHead className="w-40">Project</TableHead>
               {weekDates.map((date, index) => (
                 <TableHead key={date} className="text-center w-20">
@@ -191,15 +204,17 @@ const WeeklyTimeTable = () => {
                   {format(new Date(date), 'MMM d')}
                 </TableHead>
               ))}
-              <TableHead className="text-center">Total</TableHead>
+              <TableHead className="text-center w-24">Total</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {getGroupedEntries().map((projectGroup) => (
               <TableRow key={projectGroup.projectId}>
+                <TableCell className="font-medium text-sm">
+                  {projectGroup.customerName}
+                </TableCell>
                 <TableCell className="font-medium">
-                  <div>{projectGroup.projectName}</div>
-                  <div className="text-xs text-muted-foreground">{projectGroup.customerName}</div>
+                  {projectGroup.projectName}
                 </TableCell>
                 
                 {weekDates.map(date => (
@@ -215,19 +230,30 @@ const WeeklyTimeTable = () => {
             ))}
             
             <TableRow className="bg-muted/50">
-              <TableCell className="font-medium">Daily Total</TableCell>
-              {weekDates.map(date => (
-                <TableCell key={date} className="text-center font-medium">
-                  {getDailyTotal(date)}
-                </TableCell>
-              ))}
-              <TableCell className="text-center font-bold">
+              <TableCell colSpan={2} className="font-medium">
+                Daily Total
+              </TableCell>
+              {weekDates.map(date => {
+                const hours = getDailyTotal(date);
+                return (
+                  <TableCell key={date} className={cn("text-center font-medium", getDailyTotalColorClass(hours))}>
+                    {hours}
+                  </TableCell>
+                );
+              })}
+              <TableCell className="text-center font-bold text-lg bg-muted">
                 {getWeeklyTotal()}
               </TableCell>
             </TableRow>
           </TableBody>
         </Table>
       </div>
+      
+      <Card className="p-4 mt-4">
+        <div className="flex justify-between items-center">
+          <div className="text-lg font-medium">Weekly Total: <span className="font-bold">{getWeeklyTotal()} hours</span></div>
+        </div>
+      </Card>
       
       {weekStatus === 'rejected' && (
         <div className="bg-red-50 border border-red-200 rounded p-4 flex items-start space-x-2">
